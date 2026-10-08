@@ -18,12 +18,19 @@
     .danger { color: #8a2439; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     #status { min-height: 18px; margin-top: 10px; font-size: 12px; }
+    #connection { margin: 0 0 10px; padding: 8px 10px; border-radius: 8px; background: #eee7f6; font-size: 12px; }
+    #connection.connected { background: #e0f3e6; color: #1f6032; }
+    #connection.disconnected { background: #ffe8ec; color: #84263a; }
+    details { margin-top: 10px; font-size: 12px; line-height: 1.5; }
     @media (prefers-color-scheme: dark) {
       body { background: #251f2b; color: #f7f1fa; }
       p { color: #c8bdcd; }
       button { background: #342b3d; color: #f7f1fa; border-color: #8e7a9e; }
       button:hover { background: #493b55; }
       .danger { color: #ff9aac; }
+      #connection { background: #44384f; }
+      #connection.connected { background: #243f2d; color: #b8efc7; }
+      #connection.disconnected { background: #512d36; color: #ffc0cb; }
     }
   </style>
 </head>
@@ -32,6 +39,7 @@
     <img src="assets/icon.png" alt="">
     <div><h1>GPT 小伙伴</h1><p>只读取当前页面中可见的用量区域</p></div>
   </header>
+  <div id="connection" role="status">正在检查当前页面…</div>
   <main class="stack">
     <button id="show" type="button">恢复显示挂件</button>
     <button id="animation" type="button">切换动画</button>
@@ -42,6 +50,10 @@
     <button id="clear" class="danger" type="button">清除本地用量数据</button>
   </main>
   <div id="status" role="status" aria-live="polite"></div>
+  <details>
+    <summary>网页没有显示角色？</summary>
+    <p>确认当前页面是 chatgpt.com；在 Edge 的扩展详情中，将“站点访问权限”设为允许访问 chatgpt.com，然后刷新网页。</p>
+  </details>
   <script src="popup.js"></script>
 </body>
 </html>
