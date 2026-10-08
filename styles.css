@@ -22,6 +22,14 @@ button, select { font: inherit; }
   pointer-events: none;
   user-select: none;
 }
+.buddy-visual {
+  position: absolute;
+  inset: 0;
+  width: 420px;
+  height: 400px;
+  transform-origin: 65% 100%;
+  pointer-events: none;
+}
 .buddy-character {
   position: absolute;
   inset: 0;
@@ -158,12 +166,22 @@ button, select { font: inherit; }
 .animations-on[data-state="energetic"] .buddy-character { animation-duration: 3.8s; }
 .animations-on[data-state="tired"] .buddy-character,
 .animations-on[data-state="resting"] .buddy-character { animation-duration: 6s; }
+.animations-on.is-squashing .buddy-visual {
+  animation: buddy-squash .5s cubic-bezier(.2, .8, .25, 1);
+}
 @keyframes buddy-float {
   0%, 100% { transform: translateY(0) scale(1); }
   50% { transform: translateY(-4px) scale(1.006); }
 }
+@keyframes buddy-squash {
+  0%, 100% { transform: translateY(0) scaleX(1) scaleY(1); }
+  34% { transform: translateY(42px) scaleX(1.12) scaleY(.72); }
+  62% { transform: translateY(-7px) scaleX(.96) scaleY(1.06); }
+  82% { transform: translateY(2px) scaleX(1.02) scaleY(.98); }
+}
 @media (prefers-reduced-motion: reduce) {
   .animations-on .buddy-character { animation: none; }
+  .animations-on.is-squashing .buddy-visual { animation: none; }
 }
 @media (prefers-color-scheme: dark) {
   .buddy-menu { background: rgba(34, 29, 39, .98); border-color: #776a82; }

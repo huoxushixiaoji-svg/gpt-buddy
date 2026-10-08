@@ -33,6 +33,17 @@ test('多个额度窗口分别保留', () => {
   assert.deepEqual(items.map((item) => [item.bucketId, item.remainingPercent]), [['short', 72], ['week', 28]]);
 });
 
+test('overview 页面的“68% left”与“35% used”顺序可解析', () => {
+  const items = parser.parseUsageBlocks(fixture('overview-suffix-order.json').blocks, { now: 1000 });
+  assert.deepEqual(items.map((item) => [item.bucketId, item.remainingPercent]), [['five-hour', 68], ['weekly', 65]]);
+});
+
+test('overview 适配只在指定 ChatGPT 用量路由启用', () => {
+  assert.equal(parser.isUsageOverviewLocation({ hostname: 'chatgpt.com', pathname: '/settings/usage', search: '?tab=overview' }), true);
+  assert.equal(parser.isUsageOverviewLocation({ hostname: 'chatgpt.com', pathname: '/c/example', search: '' }), false);
+  assert.equal(parser.isUsageOverviewLocation({ hostname: 'example.com', pathname: '/settings/usage', search: '?tab=overview' }), false);
+});
+
 test('页面无候选用量区域时返回空结果', () => {
   assert.deepEqual(parser.parseUsageBlocks([], { now: 1000 }), []);
 });

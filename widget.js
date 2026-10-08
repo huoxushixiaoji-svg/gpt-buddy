@@ -30,6 +30,8 @@
     image.alt = '';
     image.draggable = false;
 
+    const visual = createElement(doc, 'div', 'buddy-visual');
+
     const bubble = createElement(doc, 'div', 'buddy-bubble');
     bubble.setAttribute('role', 'status');
     bubble.setAttribute('aria-live', 'polite');
@@ -82,7 +84,8 @@
       menu.append(button);
     }
 
-    frame.append(image, bubble, characterHit, menuButton, menu);
+    visual.append(image, bubble);
+    frame.append(visual, characterHit, menuButton, menu);
     shadow.append(frame);
     doc.documentElement.append(host);
 
@@ -99,6 +102,7 @@
     let drag = null;
     let moved = false;
     let persistTimer = null;
+    let squashTimer = null;
 
     function itemKey(item) {
       return `${item.scope}::${item.bucketId}`;
@@ -191,6 +195,15 @@
       characterHit.setAttribute('aria-expanded', String(expanded));
     }
 
+    function playSquash() {
+      if (settings.animationEnabled === false) return;
+      global.clearTimeout(squashTimer);
+      frame.classList.remove('is-squashing');
+      void frame.offsetWidth;
+      frame.classList.add('is-squashing');
+      squashTimer = global.setTimeout(() => frame.classList.remove('is-squashing'), 520);
+    }
+
     function setMenu(value, anchor) {
       const open = Boolean(value);
       menu.hidden = !open;
@@ -267,12 +280,15 @@
       characterHit.releasePointerCapture(event.pointerId);
       drag = null;
       if (moved) applyPosition(settings.position, true);
-      else setExpanded(!expanded);
+      else {
+        playSquash();
+        setExpanded(!expanded);
+      }
     });
     characterHit.addEventListener('pointercancel', () => { drag = null; });
     characterHit.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault(); setExpanded(!expanded);
+        event.preventDefault(); playSquash(); setExpanded(!expanded);
       }
     });
 
@@ -296,6 +312,7 @@
       destroy() {
         global.clearInterval(refreshTimer);
         global.clearTimeout(persistTimer);
+        global.clearTimeout(squashTimer);
         global.removeEventListener('resize', onResize);
         host.remove();
       }

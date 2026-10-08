@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>Usage Overview Adapter Test</title></head>
+<body>
+  <main>
+    <h1>Usage</h1>
+    <section>
+      <h2>Codex</h2>
+      <article>
+        <h3>5 hour limit</h3>
+        <div>68% left</div>
+        <div>Resets 18:30</div>
+      </article>
+      <article>
+        <h3>Weekly limit</h3>
+        <div>35% used</div>
+        <div>Resets Friday 10:00</div>
+      </article>
+    </section>
+  </main>
+  <script src="../parser.js"></script>
+  <script>
+    window.testUsageItems = GPTBuddy.parser.scanVisibleUsage(document, {
+      now: Date.now(),
+      location: { hostname: 'chatgpt.com', pathname: '/settings/usage', search: '?tab=overview' }
+    });
+    document.documentElement.dataset.ready = 'true';
+  </script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 {
   "name": "gpt-buddy-edge-extension",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "description": "GPT 小伙伴 Manifest V3 Edge extension",
   "scripts": {

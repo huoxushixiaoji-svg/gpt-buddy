@@ -1,0 +1,23 @@
+{
+  "name": "overview 页面后缀顺序",
+  "blocks": [
+    {
+      "routeVerified": true,
+      "heading": "5 hour limit",
+      "label": "5 hour limit",
+      "scope": "work-codex",
+      "bucketId": "five-hour",
+      "text": "68% left\nResets 18:30",
+      "source": "ChatGPT 用量页（overview）"
+    },
+    {
+      "routeVerified": true,
+      "heading": "Weekly limit",
+      "label": "Weekly limit",
+      "scope": "work-codex",
+      "bucketId": "weekly",
+      "text": "35% used\nResets Friday 10:00",
+      "source": "ChatGPT 用量页（overview）"
+    }
+  ]
+}
