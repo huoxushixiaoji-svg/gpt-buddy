@@ -24,6 +24,22 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
   try {
     browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium', headless: true,
       args: ['--no-sandbox', '--disable-crash-reporter', '--disable-breakpad'] });
+    const overview = await browser.newPage();
+    overview.on('pageerror', (err) => errors.push(String(err)));
+    await overview.goto(base + '/tests/usage-overview-harness.html');
+    await overview.waitForSelector('html[data-ready=true]');
+    assert.deepEqual(await overview.evaluate(() => testUsageItems.map((item) => [item.quotaKind, item.remainingPercent])),
+      [['five-hour', 68], ['weekly', 65]]);
+    const originalFiveHourId = await overview.evaluate(() => testUsageItems.find((item) => item.quotaKind === 'five-hour').bucketId);
+    const updatedFiveHour = await overview.evaluate(() => {
+      document.querySelector('#five-hour-reading').textContent = '5 小时额度 剩余 51%';
+      return GPTBuddy.parser.scanVisibleUsage(document, {
+        now: Date.now(), location: { hostname: 'chatgpt.com', pathname: '/settings/usage', search: '?tab=overview' }
+      }).find((item) => item.quotaKind === 'five-hour');
+    });
+    assert.equal(updatedFiveHour.bucketId, originalFiveHourId);
+    assert.equal(updatedFiveHour.remainingPercent, 51);
+    await overview.close();
     const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
     page.on('pageerror', (err) => errors.push(String(err)));
     await page.goto(base + '/tests/content-harness.html');
@@ -142,7 +158,7 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
           return { ok: true, settings };
         } },
         storage: { onChanged: { addListener(cb) { listeners.add(cb); } } },
-        tabs: { query: (q, cb) => cb([{ id: 99 }]), sendMessage: (id, m, cb) => cb({ ok: true, version: '0.4.0' }) }
+        tabs: { query: (q, cb) => cb([{ id: 99 }]), sendMessage: (id, m, cb) => cb({ ok: true, version: '0.4.1' }) }
       };
     });
     await popup.goto(base + '/popup.html');
@@ -159,6 +175,7 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
     await ui.waitForSelector('html[data-ready=true]');
     await ui.evaluate(() => testWidget.updateSettings({ animationEnabled: true }));
     const hit = ui.locator('#gpt-buddy-host .character-hit');
+    assert.equal((await ui.locator('#gpt-buddy-host .buddy-bubble').textContent()).includes('点击角色切换'), false);
     assert.match(await ui.locator('#gpt-buddy-host .buddy-bubble').textContent(), /5 小时额度.*68%/);
     await hit.click();
     assert.match(await ui.locator('#gpt-buddy-host .buddy-bubble').textContent(), /周额度.*31%.*余额重置卡：2 次/);
@@ -178,7 +195,7 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
     assert.match(await ui.locator('#gpt-buddy-host .buddy-bubble').textContent(), /5 小时额度.*68%/);
     bubble = await ui.locator('#gpt-buddy-host .buddy-bubble').textContent();
     assert.equal(/采集|来源|新近快照|重新读取/.test(bubble), false);
-    await ui.screenshot({ path: '/tmp/gpt-buddy-v0.4.0-ui.png' });
+    await ui.screenshot({ path: '/tmp/gpt-buddy-v0.4.1-ui.png' });
     await hit.click({ button: 'right' });
     assert.equal(await ui.locator('#gpt-buddy-host .buddy-menu').isVisible(), true);
     await ui.keyboard.press('Escape');

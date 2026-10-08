@@ -16,7 +16,7 @@
     window.chrome = {
       runtime: {
         getURL(path) { return new URL('../' + path, location.href).href; },
-        getManifest() { return { version: '0.4.0' }; },
+        getManifest() { return { version: '0.4.1' }; },
         onMessage: {
           addListener(listener) { runtimeListeners.add(listener); },
           removeListener(listener) { runtimeListeners.delete(listener); }

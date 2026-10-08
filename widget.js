@@ -124,7 +124,7 @@
 
     function renderDetails() {
       const kind = settings.selectedQuotaKind === 'weekly' ? 'weekly' : 'five-hour';
-      viewLine.textContent = kind === 'weekly' ? '周额度 · 点击角色切换' : '5 小时额度 · 点击角色切换';
+      viewLine.textContent = kind === 'weekly' ? '周额度' : '5 小时额度';
       const item = selectedItem();
       const now = Date.now();
       frame.dataset.state = NS.state.visualState(item, now);

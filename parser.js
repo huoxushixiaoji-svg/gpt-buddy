@@ -79,6 +79,21 @@
     return null;
   }
 
+  function quotaKindFromLocalText(text) {
+    const value = normalizeText(text);
+    const firstValue = value.search(VALUE_SIGNAL);
+    const prefix = value.slice(0, firstValue < 0 ? 120 : firstValue).slice(0, 120);
+    if (RESET_TEXT.test(prefix) || !/(?:额度|限额|用量|limit|usage)/i.test(prefix)) return null;
+    return quotaKindForLabel(prefix);
+  }
+
+  function quotaLabelBeforeValue(text) {
+    const value = normalizeText(text);
+    const firstValue = value.search(VALUE_SIGNAL);
+    const label = normalizeText((firstValue < 0 ? value : value.slice(0, firstValue)).replace(/[：:\s]+$/, ''));
+    return quotaKindForLabel(label) ? label : '';
+  }
+
   function parseResetText(text) {
     const match = normalizeText(text).match(RESET_TEXT);
     if (!match) return '';
@@ -120,7 +135,8 @@
         const text = normalizeText(bucket.text || '');
         const quotaText = text.replace(RESET_CARD_COUNT, '');
         const label = normalizeText(bucket.label || block.label || block.heading || '用量项目');
-        const quotaKind = quotaKindForLabel(label);
+        const quotaKind = bucket.quotaKind || block.quotaKind || quotaKindForLabel(label)
+          || quotaKindFromLocalText(text);
         if (options && options.onlyTrackedQuotas && !quotaKind) continue;
         const remainingMatch = quotaText.match(REMAINING_PERCENT) || quotaText.match(REMAINING_PERCENT_SUFFIX);
         const usedMatch = quotaText.match(USED_PERCENT) || quotaText.match(USED_PERCENT_SUFFIX);
@@ -141,7 +157,7 @@
         if (remainingPercent === null && remainingCount === null && !resetText && !limitReached && resetCardCount === null) continue;
 
         const scope = inferScope([blockText, text].join('\n'), bucket.scope || block.scope);
-        const stableSeed = [scope, bucket.bucketId || '', label, block.source || 'visible-semantic-container'].join('|');
+        const stableSeed = [scope, quotaKind || '', label, block.source || 'visible-semantic-container'].join('|');
         results.push({
           scope,
           bucketId: bucket.bucketId || slug(stableSeed),
@@ -222,13 +238,14 @@
   }
 
   function signalCount(text) {
-    const percents = text.match(/\d{1,3}(?:\.\d+)?\s*%/g) || [];
-    const counts = text.match(/\d+\s*(?:次|条|messages?|requests?|uses?)/gi) || [];
+    const quotaText = text.replace(RESET_CARD_COUNT, '');
+    const percents = quotaText.match(/\d{1,3}(?:\.\d+)?\s*%/g) || [];
+    const counts = quotaText.match(/\d+\s*(?:次|条|messages?|requests?|uses?)/gi) || [];
     return percents.length + counts.length;
   }
 
   function resetSignalCount(text) {
-    return (text.match(/(?:重置|恢复|可再次使用|reset(?:s)?|available\s+again)/gi) || []).length;
+    return (text.replace(RESET_CARD_COUNT, '').match(/(?:重置|恢复|可再次使用|reset(?:s)?|available\s+again)/gi) || []).length;
   }
 
   function usageBucketContainer(signalElement, main) {
@@ -263,10 +280,16 @@
 
   function usageBucketLabel(container, signalElement) {
     const heading = headingFor(container);
-    if (heading && !VALUE_SIGNAL.test(heading) && !RESET_TEXT.test(heading)) return heading;
+    if (quotaKindForLabel(heading) && !VALUE_SIGNAL.test(heading) && !RESET_TEXT.test(heading)) return heading;
     const nodes = visibleTextNodes(container);
     const signalIndex = nodes.findIndex((node) => node === signalElement || node.parentElement === signalElement || signalElement.contains(node));
-    const end = signalIndex >= 0 ? signalIndex : nodes.length;
+    const end = signalIndex >= 0 ? signalIndex + 1 : nodes.length;
+    for (let index = end - 1; index >= 0; index -= 1) {
+      const text = normalizeText(nodes[index].nodeValue);
+      const quotaLabel = quotaLabelBeforeValue(text);
+      if (text.length <= 120 && quotaLabel && !RESET_TEXT.test(text)) return quotaLabel;
+    }
+    if (heading && !VALUE_SIGNAL.test(heading) && !RESET_TEXT.test(heading)) return heading;
     for (let index = end - 1; index >= 0; index -= 1) {
       const text = normalizeText(nodes[index].nodeValue);
       if (text.length <= 80 && !VALUE_SIGNAL.test(text) && !RESET_TEXT.test(text)) return text;
@@ -403,6 +426,7 @@
     isUsageOverviewLocation,
     parseResetAt,
     quotaKindForLabel,
+    quotaKindFromLocalText,
     parseResetText,
     parseResetCardCount,
     parseUsageBlocks,

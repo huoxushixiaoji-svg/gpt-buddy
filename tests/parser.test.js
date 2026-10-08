@@ -47,6 +47,16 @@ test('仅保留 5 小时和周额度；重置卡不计入余额，错误重置�
   assert.equal(items[0].resetCardCount, null);
 });
 
+test('泛用卡片标题下的明确 5 小时与周额度仍可读取', () => {
+  const items = parser.parseUsageBlocks([
+    { routeVerified: true, label: '用量项目', text: 'Codex 5 小时额度 剩余 35%' },
+    { routeVerified: true, label: '用量项目', text: 'Codex 周额度 已用 35%' }
+  ], { now: 1000, onlyTrackedQuotas: true });
+  assert.deepEqual(items.map((item) => [item.quotaKind, item.remainingPercent]), [['five-hour', 35], ['weekly', 65]]);
+  assert.equal(parser.quotaKindFromLocalText('Resets in 5 hours 35% left'), null);
+  assert.equal(parser.quotaKindFromLocalText('余额：35%'), null);
+});
+
 test('只出现重置卡次数时保留卡次数但不冒充周额度余额', () => {
   const items = parser.parseUsageBlocks([{
     routeVerified: true, label: '周额度', text: '余额重置卡 剩余 3 次', source: '测试'
