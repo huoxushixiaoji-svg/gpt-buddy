@@ -19,6 +19,8 @@
     return input.slice(0, 30).filter((item) => item && typeof item.scope === 'string'
       && typeof item.bucketId === 'string' && typeof item.label === 'string').map((item) => ({
       scope: item.scope.slice(0, 100), bucketId: item.bucketId.slice(0, 100), label: item.label.slice(0, 100),
+      quotaKind: item.quotaKind === 'five-hour' || item.quotaKind === 'weekly' ? item.quotaKind : null,
+      resetCardCount: Number.isSafeInteger(item.resetCardCount) && item.resetCardCount >= 0 ? item.resetCardCount : null,
       remainingPercent: typeof item.remainingPercent === 'number' && Number.isFinite(item.remainingPercent)
         && item.remainingPercent >= 0 && item.remainingPercent <= 100 ? item.remainingPercent : null,
       remainingCount: Number.isSafeInteger(item.remainingCount) && item.remainingCount >= 0 ? item.remainingCount : null,
@@ -29,7 +31,7 @@
       source: 'ChatGPT 用量页（扩展后台标签页）',
       freshness: 'fresh',
       limitReached: item.limitReached === true
-    })).filter((item) => item.remainingPercent !== null || item.remainingCount !== null || item.resetText || item.limitReached);
+    })).filter((item) => item.remainingPercent !== null || item.remainingCount !== null || item.resetText || item.limitReached || item.resetCardCount !== null);
   }
 
   // All entry points run through background.js's shared write queue. Session

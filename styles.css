@@ -14,7 +14,7 @@
 :host([hidden]) { display: none !important; }
 
 *, *::before, *::after { box-sizing: border-box; }
-button, select { font: inherit; }
+button { font: inherit; }
 .buddy-frame {
   position: relative;
   width: 420px;
@@ -73,15 +73,7 @@ button, select { font: inherit; }
   user-select: text;
 }
 .buddy-details[hidden], .buddy-message[hidden], .buddy-menu[hidden] { display: none !important; }
-.buddy-select {
-  width: 100%;
-  min-height: 24px;
-  margin: 0 0 3px;
-  border: 1px solid #817390;
-  border-radius: 6px;
-  background: #fff;
-  color: #211d25;
-}
+.detail-view { font-size: 11px; font-weight: 700; color: #605866; }
 .detail-line { margin: 1px 0; overflow-wrap: anywhere; }
 .detail-value { font-size: 16px; font-weight: 800; }
 .pending-badge { display: inline-block; margin-left: 4px; font-size: 10px; color: #77606e; font-weight: 400; }
@@ -110,7 +102,7 @@ button, select { font: inherit; }
   touch-action: none;
 }
 .character-hit:active { cursor: grabbing; }
-.character-hit:focus-visible, .menu-trigger:focus-visible, button:focus-visible, select:focus-visible {
+.character-hit:focus-visible, .menu-trigger:focus-visible, button:focus-visible {
   outline: 3px solid #5d8ce8;
   outline-offset: 3px;
 }

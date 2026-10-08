@@ -25,12 +25,12 @@
       });
       widget.setItems([
         {
-          scope: 'chat', bucketId: 'short', label: 'Chat 短周期', remainingPercent: 68,
+          scope: 'chat', bucketId: 'short', label: 'Chat 5 小时额度', quotaKind: 'five-hour', remainingPercent: 68,
           remainingCount: null, unit: '', resetAt: null, resetText: '18:30',
           capturedAt: Date.now(), source: '独立测试数据', freshness: 'fresh'
         },
         {
-          scope: 'work-codex', bucketId: 'week', label: 'Codex 周额度', remainingPercent: 31,
+          scope: 'work-codex', bucketId: 'week', label: 'Codex 周额度', quotaKind: 'weekly', resetCardCount: 2, remainingPercent: 31,
           remainingCount: null, unit: '', resetAt: null, resetText: 'Friday 10:00',
           capturedAt: Date.now(), source: '独立测试数据', freshness: 'fresh'
         }

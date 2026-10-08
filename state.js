@@ -79,7 +79,7 @@
     const keyFor = (item) => JSON.stringify([item.scope, item.bucketId]);
     const fingerprint = (item) => JSON.stringify([
       item.scope, item.bucketId, item.label, item.remainingPercent, item.remainingCount,
-      item.unit, item.resetAt, item.resetText, item.source, Boolean(item.limitReached)
+      item.unit, item.resetAt, item.resetText, item.resetCardCount, item.quotaKind, item.source, Boolean(item.limitReached)
     ]);
     function view() {
       return Array.from(snapshots, ([key, item]) => ({

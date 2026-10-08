@@ -1,0 +1,33 @@
+{
+  "name": "两个额度窗口与独立重置卡",
+  "blocks": [
+    {
+      "routeVerified": true,
+      "heading": "5 小时额度",
+      "label": "5 小时额度",
+      "scope": "work-codex",
+      "bucketId": "five-hour",
+      "text": "剩余 35% 重置：剩余 35%",
+      "source": "ChatGPT 用量页（overview）"
+    },
+    {
+      "routeVerified": true,
+      "heading": "周额度",
+      "label": "周额度",
+      "scope": "work-codex",
+      "bucketId": "weekly",
+      "text": "已用 35% 重置：18:30 余额重置卡 2 次",
+      "resetCardCount": 2,
+      "source": "ChatGPT 用量页（overview）"
+    },
+    {
+      "routeVerified": true,
+      "heading": "普通用量项目",
+      "label": "用量项目",
+      "scope": "work-codex",
+      "bucketId": "other",
+      "text": "剩余 50%",
+      "source": "ChatGPT 用量页（overview）"
+    }
+  ]
+}

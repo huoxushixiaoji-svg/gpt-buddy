@@ -83,8 +83,8 @@
     // Only the explicitly managed reader tab may read while backgrounded.
     const canRead = !document.hidden || Boolean(backgroundCapture);
     const items = !canRead ? [] : backgroundCapture
-      ? NS.parser.parseUsageBlocks(NS.parser.blocksFromUsageOverview(document, location), { now: Date.now() })
-      : NS.parser.scanVisibleUsage(document, { now: Date.now() });
+      ? NS.parser.parseUsageBlocks(NS.parser.blocksFromUsageOverview(document, location), { now: Date.now(), onlyTrackedQuotas: true })
+      : NS.parser.scanVisibleUsage(document, { now: Date.now(), onlyTrackedQuotas: true });
     const result = snapshots.read(items, { manual });
     localItems = result.items;
     renderSnapshots();

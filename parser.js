@@ -23,7 +23,9 @@
   const USED_PERCENT_SUFFIX = /(\d{1,3}(?:\.\d+)?)\s*%\s*(?:已使用|已用|used)/i;
   const REMAINING_PERCENT = /(?:剩余|还剩|可用|remaining|left)\s*[:：]?\s*(\d{1,3}(?:\.\d+)?)\s*%/i;
   const REMAINING_PERCENT_SUFFIX = /(\d{1,3}(?:\.\d+)?)\s*%\s*(?:剩余|可用|remaining|left)/i;
-  const RESET_TEXT = /(?:重置|恢复|可再次使用|reset(?:s)?|available\s+again)\s*[:：]?\s*([^\n。；;]{1,80})/i;
+  const RESET_TEXT = /(?:重置(?!卡)|恢复|可再次使用|reset(?:s)?(?!\s+cards?)|available\s+again)\s*[:：]?\s*([^\n。；;]{1,80})/i;
+  const RESET_CARD_LABEL = /(?:余额重置卡|(?:balance\s+)?reset\s+cards?)/i;
+  const RESET_CARD_COUNT = /(?:余额重置卡(?:次数|数量|剩余)?|(?:balance\s+)?reset\s+cards?)\s*[:：]?\s*(?:剩余\s*)?(\d{1,4})(?![\d.%])\s*(?:张|次|cards?)?/i;
   const LIMIT_REACHED = /(?:已达到(?:[^\n]{0,16})限制|额度已用完|达到上限|limit\s+reached|you(?:'ve| have)\s+reached)/i;
   const REMAINING_COUNT = /(?:剩余|还剩|可用|remaining|left)\s*[:：]?\s*(\d+)\s*(次|条|messages?|requests?|uses?)/i;
   const REMAINING_COUNT_SUFFIX = /(\d+)\s*(次|条|messages?|requests?|uses?)\s*(?:剩余|可用|remaining|left)/i;
@@ -70,13 +72,39 @@
     return Number.isFinite(parsed) && parsed > Number(now || Date.now()) - 366 * 86400000 ? parsed : null;
   }
 
+  function quotaKindForLabel(label) {
+    const value = normalizeText(label);
+    if (/(?:5[\s-]*(?:h(?:our)?s?|小时|小時)|五\s*(?:小时|小時))/i.test(value)) return 'five-hour';
+    if (/(?:week(?:ly)?|周|週|7\s*day)/i.test(value)) return 'weekly';
+    return null;
+  }
+
+  function parseResetText(text) {
+    const match = normalizeText(text).match(RESET_TEXT);
+    if (!match) return '';
+    const candidate = normalizeText(match[1].split(RESET_CARD_LABEL)[0]);
+    if (!candidate || /(?:%|剩余|还剩|已用|remaining|left|used)/i.test(candidate)) return '';
+    const absolute = candidate.match(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:?\d{2})\b/i);
+    if (absolute) return absolute[0];
+    const dateOrTime = candidate.match(/^(.*?(?:\b\d{1,2}:\d{2}(?::\d{2})?\b|\b\d{4}-\d{2}-\d{2}\b))/i);
+    if (dateOrTime) return normalizeText(dateOrTime[1]);
+    const relative = candidate.match(/^(.*?(?:\b\d+\s*(?:minutes?|hours?|days?)\b|\d+\s*(?:分钟|小时|小時|天)(?:后|後)?))/i);
+    return relative ? normalizeText(relative[1]) : '';
+  }
+
+  function parseResetCardCount(text) {
+    const match = normalizeText(text).match(RESET_CARD_COUNT);
+    return match ? Number(match[1]) : null;
+  }
+
   function splitBuckets(block) {
     if (Array.isArray(block.buckets) && block.buckets.length) return block.buckets;
     return [{
       label: block.label || block.heading || '',
       text: block.text,
       scope: block.scope,
-      bucketId: block.bucketId
+      bucketId: block.bucketId,
+      resetCardCount: block.resetCardCount
     }];
   }
 
@@ -90,12 +118,14 @@
 
       for (const bucket of splitBuckets(block)) {
         const text = normalizeText(bucket.text || '');
+        const quotaText = text.replace(RESET_CARD_COUNT, '');
         const label = normalizeText(bucket.label || block.label || block.heading || '用量项目');
-        const remainingMatch = text.match(REMAINING_PERCENT) || text.match(REMAINING_PERCENT_SUFFIX);
-        const usedMatch = text.match(USED_PERCENT) || text.match(USED_PERCENT_SUFFIX);
-        const countMatch = text.match(REMAINING_COUNT) || text.match(REMAINING_COUNT_SUFFIX);
-        const resetMatch = text.match(RESET_TEXT);
-        const limitReached = LIMIT_REACHED.test(text);
+        const quotaKind = quotaKindForLabel(label);
+        if (options && options.onlyTrackedQuotas && !quotaKind) continue;
+        const remainingMatch = quotaText.match(REMAINING_PERCENT) || quotaText.match(REMAINING_PERCENT_SUFFIX);
+        const usedMatch = quotaText.match(USED_PERCENT) || quotaText.match(USED_PERCENT_SUFFIX);
+        const countMatch = quotaText.match(REMAINING_COUNT) || quotaText.match(REMAINING_COUNT_SUFFIX);
+        const limitReached = LIMIT_REACHED.test(quotaText);
 
         let remainingPercent = null;
         if (remainingMatch) remainingPercent = clampPercent(remainingMatch[1]);
@@ -105,8 +135,10 @@
         } else if (limitReached) remainingPercent = 0;
 
         const remainingCount = countMatch ? Number(countMatch[1]) : null;
-        const resetText = resetMatch ? normalizeText(resetMatch[1]) : '';
-        if (remainingPercent === null && remainingCount === null && !resetText && !limitReached) continue;
+        const resetText = parseResetText(text);
+        const resetCardCount = quotaKind === 'weekly'
+          ? (Number.isSafeInteger(bucket.resetCardCount) ? bucket.resetCardCount : parseResetCardCount(text)) : null;
+        if (remainingPercent === null && remainingCount === null && !resetText && !limitReached && resetCardCount === null) continue;
 
         const scope = inferScope([blockText, text].join('\n'), bucket.scope || block.scope);
         const stableSeed = [scope, bucket.bucketId || '', label, block.source || 'visible-semantic-container'].join('|');
@@ -114,6 +146,8 @@
           scope,
           bucketId: bucket.bucketId || slug(stableSeed),
           label,
+          quotaKind,
+          resetCardCount,
           remainingPercent,
           remainingCount,
           unit: countMatch ? normalizeText(countMatch[2]) : '',
@@ -258,8 +292,20 @@
     if (!main || !isVisible(main) || isExcluded(main)) return [];
 
     const allNodes = visibleTextNodes(main);
+    let resetCardCount = null;
+    for (const node of allNodes) {
+      if (!RESET_CARD_LABEL.test(normalizeText(node.nodeValue))) continue;
+      let current = node.parentElement;
+      for (let depth = 0; current && current !== main && depth < 4; depth += 1, current = current.parentElement) {
+        const text = elementText(current);
+        if (text.length > 120) break;
+        const count = parseResetCardCount(text);
+        if (count !== null) { resetCardCount = count; break; }
+      }
+      if (resetCardCount !== null) break;
+    }
     const valueNodes = allNodes.filter((node) => VALUE_SIGNAL.test(normalizeText(node.nodeValue)));
-    const resetNodes = allNodes.filter((node) => RESET_TEXT.test(normalizeText(node.nodeValue)));
+    const resetNodes = allNodes.filter((node) => !RESET_CARD_LABEL.test(normalizeText(node.nodeValue)) && parseResetText(node.nodeValue));
     const containers = [];
 
     for (const node of valueNodes) {
@@ -272,7 +318,7 @@
       if (!containers.some((existing) => existing === container || existing.contains(container) || container.contains(existing))) containers.push(container);
     }
 
-    return containers.map((container, index) => {
+    const blocks = containers.map((container, index) => {
       const text = elementText(container);
       const signalNode = visibleTextNodes(container).find((node) => VALUE_SIGNAL.test(normalizeText(node.nodeValue))) || container;
       const label = usageBucketLabel(container, signalNode);
@@ -287,6 +333,16 @@
         routeVerified: true
       };
     });
+    const weeklyBlocks = blocks.filter((block) => quotaKindForLabel(block.label) === 'weekly');
+    if (resetCardCount !== null && weeklyBlocks.length === 1) weeklyBlocks[0].resetCardCount = resetCardCount;
+    if (resetCardCount !== null && weeklyBlocks.length === 0) {
+      blocks.push({
+        heading: '周额度', label: '周额度', text: '', resetCardCount,
+        bucketId: 'weekly-reset-card', scope: 'unspecified',
+        source: 'ChatGPT 用量页（overview）', routeVerified: true
+      });
+    }
+    return blocks;
   }
 
   function blocksFromDocument(root, options) {
@@ -346,6 +402,9 @@
     normalizeText,
     isUsageOverviewLocation,
     parseResetAt,
+    quotaKindForLabel,
+    parseResetText,
+    parseResetCardCount,
     parseUsageBlocks,
     blocksFromUsageOverview,
     scanVisibleUsage,

@@ -38,7 +38,7 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
     await page.evaluate(() => __GPT_BUDDY_CONTROLLER__.scan());
     assert.equal(await page.evaluate(() => testMessages.filter((m) => m.type === 'UPSERT_SNAPSHOTS').at(-1).items[0].capturedAt), captured);
 
-    const snapshot = { scope: 'work-codex', bucketId: 'weekly', label: 'Weekly', remainingPercent: 62, remainingCount: null,
+    const snapshot = { scope: 'work-codex', bucketId: 'five-hour', label: '5 hour', quotaKind: 'five-hour', remainingPercent: 62, remainingCount: null,
       resetText: '18:30', resetAt: null, capturedAt: Date.now(), source: 'test-source' };
     await page.evaluate((item) => emitStorageChange({ settings: { newValue: { backgroundRefreshEnabled: true } },
       backgroundUsage: { newValue: { status: 'ok', items: [item] } } }), snapshot);
@@ -98,7 +98,7 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
     await sourcePage.route('https://chatgpt.com/**', async (route) => {
       const pathname = new URL(route.request().url()).pathname;
       if (pathname === '/settings/usage') {
-        await route.fulfill({ contentType: 'text/html', body: '<main><h1>Usage</h1><section><h2>Codex</h2><article><h3>Weekly limit</h3><div id="reading">68% left</div><div>Resets 18:30</div></article></section></main><script src="/parser.js"></script><script src="/state.js"></script><script src="/widget.js"></script><script src="/content.js"></script>' });
+        await route.fulfill({ contentType: 'text/html', body: '<main><h1>Usage</h1><section><h2>Codex</h2><article><h3>5 hour limit</h3><div id="reading">68% left</div><div>Resets 18:30</div></article><article><h3>Weekly limit</h3><div>35% used</div><div>Resets Friday 10:00</div></article><article><h3>余额重置卡</h3><div id="reset-card-count">2 次</div></article></section></main><script src="/parser.js"></script><script src="/state.js"></script><script src="/widget.js"></script><script src="/content.js"></script>' });
       } else {
         const target = path.join(root, pathname);
         try { await route.fulfill({ body: await fs.readFile(target), contentType: mime[path.extname(target)] || 'text/plain' }); }
@@ -112,12 +112,20 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
     await sourcePage.evaluate(() => { document.querySelector('#reading').firstChild.nodeValue = '52% left'; });
     await page.waitForFunction(() => document.querySelector('#gpt-buddy-host').shadowRoot.querySelector('.detail-value').textContent.includes('52%'));
     assert.equal(data.backgroundUsage.items[0].remainingPercent, 52);
-    assert.match(await page.locator('#gpt-buddy-host .detail-line').last().textContent(), /18:30/);
+    assert.match(await page.locator('#gpt-buddy-host .detail-line').nth(2).textContent(), /18:30/);
+    await sourcePage.evaluate(() => { document.querySelector('#reset-card-count').firstChild.nodeValue = '1 次'; });
+    await page.locator('#gpt-buddy-host .character-hit').click();
+    await page.waitForFunction(() => document.querySelector('#gpt-buddy-host').shadowRoot.querySelector('.buddy-bubble').textContent.includes('余额重置卡：1 次'));
+    assert.match(await value.textContent(), /65%/);
+    await page.locator('#gpt-buddy-host .character-hit').click();
     await sourcePage.evaluate(() => {
       const main = document.querySelector('main'); const copy = main.cloneNode(true);
       main.remove(); copy.querySelector('#reading').textContent = '41% left'; document.body.append(copy);
     });
     await page.waitForFunction(() => document.querySelector('#gpt-buddy-host').shadowRoot.querySelector('.detail-value').textContent.includes('41%'));
+    const sourceItems = data.backgroundUsage.items;
+    assert.deepEqual(sourceItems.map((item) => item.quotaKind).sort(), ['five-hour', 'weekly']);
+    assert.equal(sourceItems.find((item) => item.quotaKind === 'weekly').resetCardCount, 1);
 
     const popup = await browser.newPage({ viewport: { width: 360, height: 740 } });
     popup.on('pageerror', (err) => errors.push(String(err)));
@@ -134,7 +142,7 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
           return { ok: true, settings };
         } },
         storage: { onChanged: { addListener(cb) { listeners.add(cb); } } },
-        tabs: { query: (q, cb) => cb([{ id: 99 }]), sendMessage: (id, m, cb) => cb({ ok: true, version: '0.3.0' }) }
+        tabs: { query: (q, cb) => cb([{ id: 99 }]), sendMessage: (id, m, cb) => cb({ ok: true, version: '0.4.0' }) }
       };
     });
     await popup.goto(base + '/popup.html');
@@ -151,14 +159,26 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
     await ui.waitForSelector('html[data-ready=true]');
     await ui.evaluate(() => testWidget.updateSettings({ animationEnabled: true }));
     const hit = ui.locator('#gpt-buddy-host .character-hit');
+    assert.match(await ui.locator('#gpt-buddy-host .buddy-bubble').textContent(), /5 小时额度.*68%/);
     await hit.click();
+    assert.match(await ui.locator('#gpt-buddy-host .buddy-bubble').textContent(), /周额度.*31%.*余额重置卡：2 次/);
     await ui.waitForTimeout(160);
     assert.notEqual(await ui.locator('#gpt-buddy-host .buddy-visual').evaluate((el) => getComputedStyle(el).transform), 'none');
     await ui.waitForTimeout(420);
     assert.equal(await ui.locator('#gpt-buddy-host .buddy-visual').evaluate((el) => getComputedStyle(el).transform), 'none');
+    const beforeDrag = await ui.locator('#gpt-buddy-host .buddy-bubble').textContent();
+    const hitBox = await hit.boundingBox();
+    await ui.mouse.move(hitBox.x + hitBox.width / 2, hitBox.y + hitBox.height / 2);
+    await ui.mouse.down();
+    await ui.mouse.move(hitBox.x + hitBox.width / 2 + 22, hitBox.y + hitBox.height / 2 + 10, { steps: 5 });
+    await ui.mouse.up();
+    assert.equal(await ui.locator('#gpt-buddy-host .buddy-bubble').textContent(), beforeDrag);
+    await hit.focus();
+    await ui.keyboard.press('Enter');
+    assert.match(await ui.locator('#gpt-buddy-host .buddy-bubble').textContent(), /5 小时额度.*68%/);
     bubble = await ui.locator('#gpt-buddy-host .buddy-bubble').textContent();
     assert.equal(/采集|来源|新近快照|重新读取/.test(bubble), false);
-    await ui.screenshot({ path: '/tmp/gpt-buddy-v0.3.0-ui.png' });
+    await ui.screenshot({ path: '/tmp/gpt-buddy-v0.4.0-ui.png' });
     await hit.click({ button: 'right' });
     assert.equal(await ui.locator('#gpt-buddy-host .buddy-menu').isVisible(), true);
     await ui.keyboard.press('Escape');

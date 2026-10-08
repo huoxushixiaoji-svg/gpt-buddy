@@ -5,6 +5,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   scale: 1,
   animationEnabled: true,
   backgroundRefreshEnabled: false,
+  selectedQuotaKind: 'five-hour',
   position: null
 });
 

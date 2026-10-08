@@ -5,7 +5,7 @@
   <title>GPT 小伙伴 Content Script 集成测试</title>
 </head>
 <body>
-  <div role="alert" aria-label="Chat 用量">
+  <div role="alert" aria-label="Chat 5 小时额度">
     <span>剩余 35%</span>
     <span>恢复：18:30</span>
   </div>
@@ -16,7 +16,7 @@
     window.chrome = {
       runtime: {
         getURL(path) { return new URL('../' + path, location.href).href; },
-        getManifest() { return { version: '0.3.0' }; },
+        getManifest() { return { version: '0.4.0' }; },
         onMessage: {
           addListener(listener) { runtimeListeners.add(listener); },
           removeListener(listener) { runtimeListeners.delete(listener); }

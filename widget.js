@@ -38,19 +38,16 @@
 
     const details = createElement(doc, 'div', 'buddy-details');
 
-    const selectorLabel = createElement(doc, 'label', 'sr-only', '选择额度项目');
-    const selector = createElement(doc, 'select', 'buddy-select');
-    selector.id = 'gpt-buddy-usage-select';
-    selectorLabel.htmlFor = selector.id;
-
+    const viewLine = createElement(doc, 'div', 'detail-line detail-view');
     const valueLine = createElement(doc, 'div', 'detail-line detail-value', '暂无准确剩余额度');
     const resetLine = createElement(doc, 'div', 'detail-line');
-    details.append(selectorLabel, selector, valueLine, resetLine);
+    const cardLine = createElement(doc, 'div', 'detail-line');
+    details.append(viewLine, valueLine, resetLine, cardLine);
     bubble.append(details);
 
     const characterHit = createElement(doc, 'button', 'character-hit');
     characterHit.type = 'button';
-    characterHit.setAttribute('aria-label', '点击角色弹一下；右键打开菜单');
+    characterHit.setAttribute('aria-label', '切换 5 小时与周额度，角色弹一下；右键打开菜单');
 
     const menuButton = createElement(doc, 'button', 'menu-trigger', '⋯');
     menuButton.type = 'button';
@@ -83,22 +80,23 @@
       visible: true,
       scale: 1,
       animationEnabled: true,
+      selectedQuotaKind: 'five-hour',
       position: null,
       ...(options.settings || {})
     };
     let items = [];
-    let selectedKey = '';
     let drag = null;
     let moved = false;
     let persistTimer = null;
     let squashTimer = null;
 
-    function itemKey(item) {
-      return `${item.scope}::${item.bucketId}`;
-    }
-
     function selectedItem() {
-      return items.find((item) => itemKey(item) === selectedKey) || items[0] || null;
+      const matching = items.filter((item) => item.quotaKind === settings.selectedQuotaKind);
+      matching.sort((left, right) => {
+        const rank = (item) => item.observationStatus === 'visible' ? 2 : item.observationStatus === 'background' ? 1 : 0;
+        return rank(right) - rank(left) || Number(right.capturedAt || 0) - Number(left.capturedAt || 0);
+      });
+      return matching[0] || null;
     }
 
     function clampPosition(position) {
@@ -125,24 +123,15 @@
     }
 
     function renderDetails() {
-      selector.replaceChildren();
-      for (const item of items) {
-        const option = createElement(doc, 'option', '', item.label || '用量项目');
-        option.value = itemKey(item);
-        selector.append(option);
-      }
-      if (selectedItem()) {
-        selectedKey = itemKey(selectedItem());
-        selector.value = selectedKey;
-      }
-      selector.hidden = items.length < 2;
-
+      const kind = settings.selectedQuotaKind === 'weekly' ? 'weekly' : 'five-hour';
+      viewLine.textContent = kind === 'weekly' ? '周额度 · 点击角色切换' : '5 小时额度 · 点击角色切换';
       const item = selectedItem();
       const now = Date.now();
       frame.dataset.state = NS.state.visualState(item, now);
       if (!item) {
         valueLine.textContent = '余额：暂无准确数据';
-        resetLine.textContent = '重置：暂未提供';
+        resetLine.textContent = '';
+        cardLine.textContent = kind === 'weekly' ? '余额重置卡：暂无数据' : '';
       } else {
         const pending = NS.state.freshnessFor(item, now) !== 'fresh' || item.observationStatus === 'history' || item.updatePending;
         const value = Number.isFinite(item.remainingPercent) ? `${item.remainingPercent}%`
@@ -150,7 +139,11 @@
           : '暂无准确数据';
         valueLine.textContent = `${pending ? '上次余额' : '余额'}：${value}`;
         if (pending) valueLine.append(createElement(doc, 'small', 'pending-badge', '待更新'));
-        resetLine.textContent = `重置：${item.resetText || '暂未提供'}`;
+        const validResetText = item.resetText ? NS.parser.parseResetText(`重置：${item.resetText}`) : '';
+        resetLine.textContent = validResetText ? `重置：${validResetText}` : '';
+        cardLine.textContent = kind === 'weekly'
+          ? `余额重置卡：${Number.isSafeInteger(item.resetCardCount) && item.resetCardCount >= 0 ? `${item.resetCardCount} 次` : '暂无数据'}`
+          : '';
       }
       resetLine.title = resetLine.textContent;
     }
@@ -164,10 +157,17 @@
     }
 
     function setItems(nextItems) {
-      const oldKey = selectedKey;
-      items = Array.isArray(nextItems) ? nextItems.slice() : [];
-      selectedKey = items.some((item) => itemKey(item) === oldKey) ? oldKey : (items[0] ? itemKey(items[0]) : '');
+      items = (Array.isArray(nextItems) ? nextItems : []).map((item) => ({
+        ...item, quotaKind: item.quotaKind || NS.parser.quotaKindForLabel(item.label)
+      })).filter((item) => item.quotaKind === 'five-hour' || item.quotaKind === 'weekly');
       renderDetails();
+    }
+
+    function switchQuota() {
+      settings.selectedQuotaKind = settings.selectedQuotaKind === 'weekly' ? 'five-hour' : 'weekly';
+      renderDetails();
+      options.onSettingsChange({ selectedQuotaKind: settings.selectedQuotaKind });
+      playSquash();
     }
 
     function playSquash() {
@@ -196,10 +196,6 @@
       }
     }
 
-    selector.addEventListener('change', () => {
-      selectedKey = selector.value;
-      renderDetails();
-    });
     menuButton.addEventListener('click', () => setMenu(menu.hidden));
     characterHit.addEventListener('contextmenu', (event) => {
       event.preventDefault();
@@ -256,19 +252,20 @@
       drag = null;
       if (moved) applyPosition(settings.position, true);
       else {
-        playSquash();
+        switchQuota();
       }
     });
     characterHit.addEventListener('pointercancel', () => { drag = null; });
     characterHit.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault(); playSquash();
+        event.preventDefault(); switchQuota();
       }
     });
 
     function updateSettings(patch) {
       settings = { ...settings, ...(patch || {}) };
       renderSettings();
+      renderDetails();
     }
 
     function onResize() {
