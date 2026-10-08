@@ -36,9 +36,7 @@
     bubble.setAttribute('role', 'status');
     bubble.setAttribute('aria-live', 'polite');
 
-    const message = createElement(doc, 'p', 'buddy-message', '打开用量面板，让我看看。');
     const details = createElement(doc, 'div', 'buddy-details');
-    details.hidden = true;
 
     const selectorLabel = createElement(doc, 'label', 'sr-only', '选择额度项目');
     const selector = createElement(doc, 'select', 'buddy-select');
@@ -47,20 +45,12 @@
 
     const valueLine = createElement(doc, 'div', 'detail-line detail-value', '暂无准确剩余额度');
     const resetLine = createElement(doc, 'div', 'detail-line');
-    const capturedLine = createElement(doc, 'div', 'detail-line detail-muted');
-    const sourceLine = createElement(doc, 'div', 'detail-line detail-muted');
-
-    const scanButton = createElement(doc, 'button', 'bubble-button', '重新读取');
-    scanButton.type = 'button';
-    scanButton.setAttribute('aria-label', '重新读取当前页面中可见的用量区域');
-    scanButton.addEventListener('click', () => options.onRescan());
-
-    details.append(selectorLabel, selector, valueLine, resetLine, capturedLine, sourceLine, scanButton);
-    bubble.append(message, details);
+    details.append(selectorLabel, selector, valueLine, resetLine);
+    bubble.append(details);
 
     const characterHit = createElement(doc, 'button', 'character-hit');
     characterHit.type = 'button';
-    characterHit.setAttribute('aria-label', '展开或收起 GPT 小伙伴详情；右键打开菜单');
+    characterHit.setAttribute('aria-label', '点击角色弹一下；右键打开菜单');
 
     const menuButton = createElement(doc, 'button', 'menu-trigger', '⋯');
     menuButton.type = 'button';
@@ -98,7 +88,6 @@
     };
     let items = [];
     let selectedKey = '';
-    let expanded = false;
     let drag = null;
     let moved = false;
     let persistTimer = null;
@@ -151,25 +140,19 @@
       const item = selectedItem();
       const now = Date.now();
       frame.dataset.state = NS.state.visualState(item, now);
-      message.textContent = NS.state.messageFor(item, now);
-      const safeValue = NS.state.safeCurrentValue(item, now);
-
       if (!item) {
-        valueLine.textContent = '暂无准确剩余额度';
-        resetLine.textContent = '';
-        capturedLine.textContent = '尚未采集';
-        sourceLine.textContent = '';
+        valueLine.textContent = '余额：暂无准确数据';
+        resetLine.textContent = '重置：暂未提供';
       } else {
-        valueLine.textContent = safeValue.percent !== null
-          ? `剩余 ${safeValue.percent}%`
-          : safeValue.count !== null
-            ? `剩余 ${safeValue.count}${item.unit ? ` ${item.unit}` : ''}`
-            : '暂无准确剩余额度';
-        resetLine.textContent = item.resetText ? `恢复：${item.resetText}` : '恢复时间：未知';
-        const freshnessLabels = { fresh: '新近快照', stale: '过期快照', 'past-reset': '已超过恢复时间', unknown: '未知' };
-        capturedLine.textContent = `采集：${NS.state.formatTime(item.capturedAt) || '未知'} · ${freshnessLabels[NS.state.freshnessFor(item, now)] || '未知'}`;
-        sourceLine.textContent = `来源：${item.source || '未知'}`;
+        const pending = NS.state.freshnessFor(item, now) !== 'fresh' || item.observationStatus === 'history' || item.updatePending;
+        const value = Number.isFinite(item.remainingPercent) ? `${item.remainingPercent}%`
+          : Number.isFinite(item.remainingCount) ? `${item.remainingCount}${item.unit ? ` ${item.unit}` : ''}`
+          : '暂无准确数据';
+        valueLine.textContent = `${pending ? '上次余额' : '余额'}：${value}`;
+        if (pending) valueLine.append(createElement(doc, 'small', 'pending-badge', '待更新'));
+        resetLine.textContent = `重置：${item.resetText || '暂未提供'}`;
       }
+      resetLine.title = resetLine.textContent;
     }
 
     function renderSettings() {
@@ -185,14 +168,6 @@
       items = Array.isArray(nextItems) ? nextItems.slice() : [];
       selectedKey = items.some((item) => itemKey(item) === oldKey) ? oldKey : (items[0] ? itemKey(items[0]) : '');
       renderDetails();
-    }
-
-    function setExpanded(value) {
-      expanded = Boolean(value);
-      details.hidden = !expanded;
-      message.hidden = expanded;
-      bubble.classList.toggle('is-expanded', expanded);
-      characterHit.setAttribute('aria-expanded', String(expanded));
     }
 
     function playSquash() {
@@ -282,13 +257,12 @@
       if (moved) applyPosition(settings.position, true);
       else {
         playSquash();
-        setExpanded(!expanded);
       }
     });
     characterHit.addEventListener('pointercancel', () => { drag = null; });
     characterHit.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault(); playSquash(); setExpanded(!expanded);
+        event.preventDefault(); playSquash();
       }
     });
 

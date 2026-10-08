@@ -2,6 +2,10 @@
   "use strict";
   const status = document.getElementById('status');
   const connection = document.getElementById('connection');
+  const backgroundButton = document.getElementById('background');
+  const backgroundStatus = document.getElementById('reader-status');
+  const refreshButton = document.getElementById('refresh-background');
+  let backgroundUsage = { status: 'off', items: [] };
   let settings = { visible: true, scale: 1, animationEnabled: true, position: null };
 
   async function send(message) {
@@ -10,6 +14,19 @@
   }
 
   function say(text) { status.textContent = text; }
+
+  function renderBackground() {
+    const enabled = Boolean(settings.backgroundRefreshEnabled);
+    backgroundButton.textContent = enabled ? '关闭后台更新' : '开启后台更新';
+    backgroundButton.setAttribute('aria-pressed', String(enabled));
+    refreshButton.hidden = !enabled;
+    const labels = {
+      off: '后台更新已关闭', loading: '正在读取用量页面…', ok: '已读取，每分钟尝试更新',
+      'waiting-active': '你正在查看用量页，暂不刷新它', unrecognized: '未识别额度，请检查后台页是否已加载',
+      'page-unavailable': '后台页不可用，请检查登录和页面状态', 'tab-closed': '后台页已关闭，更新已停止'
+    };
+    backgroundStatus.textContent = labels[backgroundUsage.status] || '等待下次更新';
+  }
 
   function sendToCurrentTab(message) {
     return new Promise((resolve) => {
@@ -46,6 +63,7 @@
     const response = await send({ type: 'UPDATE_SETTINGS', patch: next });
     if (response && response.ok) {
       settings = response.settings;
+      renderBackground();
       say(message);
     } else say('设置保存失败，请稍后重试。');
   }
@@ -61,11 +79,31 @@
   document.getElementById('larger').addEventListener('click', () => patch({ scale: Math.min(1.35, Math.round((Number(settings.scale) + 0.1) * 10) / 10) }, '挂件已放大。'));
   document.getElementById('clear').addEventListener('click', async () => {
     const response = await send({ type: 'CLEAR_SNAPSHOTS' });
-    say(response && response.ok ? '本地用量快照已清除。' : '清除失败，请稍后重试。');
+    say(response && response.ok ? '快照已清除，后台更新已停止。' : '清除失败，请稍后重试。');
+  });
+
+  backgroundButton.addEventListener('click', async () => {
+    backgroundButton.disabled = true;
+    await patch({ backgroundRefreshEnabled: !settings.backgroundRefreshEnabled }, '后台更新设置已保存。');
+    backgroundButton.disabled = false;
+  });
+  refreshButton.addEventListener('click', async () => {
+    const response = await send({ type: 'REFRESH_BACKGROUND' });
+    say(response.ok ? '已请求读取，请查看更新状态。' : '未能发起读取，请稍后重试。');
+  });
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    if (changes.settings) settings = changes.settings.newValue || {};
+    if (changes.backgroundUsage) backgroundUsage = changes.backgroundUsage.newValue || { status: 'off' };
+    renderBackground();
   });
 
   send({ type: 'GET_STATE', contextKey: '' }).then((response) => {
-    if (response && response.ok) settings = response.settings;
+    if (response && response.ok) {
+      settings = response.settings;
+      backgroundUsage = response.backgroundUsage || backgroundUsage;
+      renderBackground();
+    }
   });
   checkConnection();
 })();

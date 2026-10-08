@@ -18,6 +18,7 @@
 
   function visualState(item, now) {
     const freshness = freshnessFor(item, now);
+    if (item && (item.observationStatus === 'history' || item.observationStatus === 'background')) return 'neutral';
     if (freshness !== 'fresh' || !item || item.remainingPercent === null || item.remainingPercent === undefined) return 'neutral';
     const remaining = Number(item.remainingPercent);
     if (!Number.isFinite(remaining)) return 'neutral';
@@ -40,6 +41,7 @@
     if (freshness === 'past-reset') return '恢复时间已过，等你重新查看页面。';
     if (freshness === 'stale') return '这份读数有点旧啦。';
     if (freshness !== 'fresh') return '暂时没有可靠读数。';
+    if (item.observationStatus === 'history') return `上次记录：${historicalValue(item)}。`;
     if (item.remainingPercent !== null && item.remainingPercent !== undefined) {
       const percent = Number(item.remainingPercent);
       if (percent === 0 || item.limitReached) return '页面提示已经到限制啦，我先休息。';
@@ -55,10 +57,54 @@
   }
 
   function safeCurrentValue(item, now) {
-    if (freshnessFor(item, now) !== 'fresh') return { percent: null, count: null };
+    if (freshnessFor(item, now) !== 'fresh' || item.observationStatus === 'history') return { percent: null, count: null };
     return {
       percent: item.remainingPercent === null ? null : item.remainingPercent,
       count: item.remainingCount === null ? null : item.remainingCount
+    };
+  }
+
+  function historicalValue(item) {
+    if (!item) return '暂无准确剩余额度';
+    if (Number.isFinite(item.remainingPercent)) return `剩余 ${item.remainingPercent}%`;
+    if (Number.isFinite(item.remainingCount)) return `剩余 ${item.remainingCount}${item.unit ? ` ${item.unit}` : ''}`;
+    return item.resetText ? `恢复：${item.resetText}` : '暂无准确剩余额度';
+  }
+
+  // This cache belongs to a single document, not an authenticated identity.
+  // Once its source disappears, retain an explicitly historical view only.
+  function createSnapshotSession() {
+    const snapshots = new Map();
+    let observed = new Set();
+    const keyFor = (item) => JSON.stringify([item.scope, item.bucketId]);
+    const fingerprint = (item) => JSON.stringify([
+      item.scope, item.bucketId, item.label, item.remainingPercent, item.remainingCount,
+      item.unit, item.resetAt, item.resetText, item.source, Boolean(item.limitReached)
+    ]);
+    function view() {
+      return Array.from(snapshots, ([key, item]) => ({
+        ...item, observationStatus: observed.has(key) ? 'visible' : 'history'
+      }));
+    }
+    return {
+      read(items, { manual = false } = {}) {
+        const nextObserved = new Set();
+        const changed = [];
+        for (const item of items || []) {
+          const key = keyFor(item);
+          nextObserved.add(key);
+          const old = snapshots.get(key);
+          if (old && old.capturedAt > item.capturedAt) continue;
+          // Unrelated mutations must not keep an unchanged snapshot fresh forever.
+          if (old && observed.has(key) && !manual && fingerprint(old) === fingerprint(item)) continue;
+          snapshots.set(key, { ...item });
+          changed.push({ ...item });
+        }
+        observed = nextObserved;
+        return { items: view(), changed };
+      },
+      leave() { observed.clear(); return view(); },
+      clear() { observed.clear(); snapshots.clear(); return []; }
     };
   }
 
@@ -69,7 +115,9 @@
     visualState,
     formatTime,
     messageFor,
-    safeCurrentValue
+    safeCurrentValue,
+    historicalValue,
+    createSnapshotSession
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = NS.state;

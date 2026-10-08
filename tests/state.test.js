@@ -41,3 +41,26 @@ test('旧标签页快照不能覆盖新快照', () => {
   const updated = mergeSnapshotMaps(merged, [item({ capturedAt: 10_000, remainingPercent: 15 })]);
   assert.equal(updated['chat::short'].remainingPercent, 15);
 });
+
+test('离开用量页或空扫描保留历史值及时间；重新采集后才更新', () => {
+  const session = state.createSnapshotSession();
+  const first = session.read([item()]);
+  assert.equal(first.changed.length, 1);
+  const unchanged = session.read([item({ capturedAt: 5000 })]);
+  assert.equal(unchanged.changed.length, 0);
+  assert.equal(unchanged.items[0].capturedAt, 1000);
+  session.leave();
+  const history = session.read([]).items[0];
+  assert.equal(history.remainingPercent, 35);
+  assert.equal(history.capturedAt, 1000);
+  assert.equal(history.observationStatus, 'history');
+  assert.equal(state.visualState(history, 6000), 'neutral');
+  assert.equal(session.read([item({ capturedAt: 7000 })]).items[0].capturedAt, 7000);
+});
+
+test('清除会话后不复用旧身份；后台未知账号快照不驱动角色状态', () => {
+  const session = state.createSnapshotSession();
+  session.read([item()]); session.clear();
+  assert.deepEqual(session.read([]).items, []);
+  assert.equal(state.visualState(item({ remainingPercent: 0, observationStatus: 'background' }), 1000), 'neutral');
+});

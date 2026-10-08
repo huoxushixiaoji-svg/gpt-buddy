@@ -37,10 +37,14 @@
 <body>
   <header>
     <img src="assets/icon.png" alt="">
-    <div><h1>GPT 小伙伴</h1><p>只读取当前页面中可见的用量区域</p></div>
+    <div><h1>GPT 小伙伴</h1><p>余额与重置时间，一眼就看到</p></div>
   </header>
   <div id="connection" role="status">正在检查当前页面…</div>
   <main class="stack">
+    <button id="background" type="button" aria-pressed="false">开启后台更新</button>
+    <p>开启后维护一个后台用量标签页，每分钟尝试更新。请确认该页是你要查看的账号和工作区；其快照不代表其他账号。</p>
+    <p id="reader-status" role="status">后台更新已关闭</p>
+    <button id="refresh-background" type="button" hidden>立即尝试更新</button>
     <button id="show" type="button">恢复显示挂件</button>
     <button id="animation" type="button">切换动画</button>
     <div class="row">

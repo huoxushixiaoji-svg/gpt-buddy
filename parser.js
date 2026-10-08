@@ -327,13 +327,16 @@
   function mutationTouchesUsageArea(records, locationLike) {
     const onUsageOverview = isUsageOverviewLocation(locationLike || global.location);
     for (const record of records || []) {
-      const nodes = [...record.addedNodes, ...record.removedNodes];
+      const nodes = [...(record.addedNodes || []), ...(record.removedNodes || [])];
       for (const node of nodes) {
         if (node.nodeType !== 1) continue;
         if ((node.matches && node.matches(CANDIDATE_SELECTOR)) || (node.querySelector && node.querySelector(CANDIDATE_SELECTOR))) return true;
+        if (onUsageOverview && ((node.matches && node.matches('main, [role="main"]'))
+          || (node.querySelector && node.querySelector('main, [role="main"]')))) return true;
       }
-      if (record.target && record.target.closest && record.target.closest(CANDIDATE_SELECTOR)) return true;
-      if (onUsageOverview && record.target && record.target.closest && record.target.closest('main, [role="main"]')) return true;
+      const target = record.target?.nodeType === 3 ? record.target.parentElement : record.target;
+      if (target?.closest && target.closest(CANDIDATE_SELECTOR)) return true;
+      if (onUsageOverview && target?.closest && target.closest('main, [role="main"]')) return true;
     }
     return false;
   }
