@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "GPT 小伙伴",
+  "version": "0.1.0",
+  "description": "在 ChatGPT 页面内显示来源明确的用量快照挂件。",
+  "permissions": ["storage"],
+  "host_permissions": ["https://chatgpt.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "GPT 小伙伴",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "assets/icon.png",
+      "32": "assets/icon.png",
+      "48": "assets/icon.png",
+      "128": "assets/icon.png"
+    }
+  },
+  "icons": {
+    "16": "assets/icon.png",
+    "32": "assets/icon.png",
+    "48": "assets/icon.png",
+    "128": "assets/icon.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*"],
+      "js": ["parser.js", "state.js", "widget.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/character-web.png", "styles.css"],
+      "matches": ["https://chatgpt.com/*"]
+    }
+  ]
+}

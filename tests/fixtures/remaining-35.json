@@ -1,0 +1,14 @@
+{
+  "name": "页面显示剩余 35%",
+  "blocks": [
+    {
+      "testFixture": true,
+      "heading": "Chat 用量",
+      "label": "Chat 短周期",
+      "scope": "chat",
+      "bucketId": "short-window",
+      "text": "剩余 35%\n恢复：18:30",
+      "source": "测试用量面板"
+    }
+  ]
+}

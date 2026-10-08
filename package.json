@@ -1,0 +1,9 @@
+{
+  "name": "gpt-buddy-edge-extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GPT 小伙伴 Manifest V3 Edge extension",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
+}

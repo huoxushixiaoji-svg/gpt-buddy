@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GPT 小伙伴独立 UI 测试</title>
+  <style>
+    body { min-height: 100vh; margin: 0; background: linear-gradient(145deg, #f4f3f7, #dad6e1); font-family: system-ui, sans-serif; }
+    .notice { margin: 24px; padding: 16px; width: 360px; border-radius: 12px; background: white; color: #332c39; }
+  </style>
+</head>
+<body>
+  <div class="notice"><strong>独立 UI 测试页</strong><br>这里的数值仅用于布局测试，不属于生产解析数据。</div>
+  <script src="../parser.js"></script>
+  <script src="../state.js"></script>
+  <script src="../widget.js"></script>
+  <script>
+    fetch('../styles.css').then((response) => response.text()).then((styles) => {
+      const widget = GPTBuddy.widget.createWidget({
+        shadowMode: 'open',
+        styles,
+        imageUrl: '../assets/character-web.png',
+        settings: { visible: true, scale: 1, animationEnabled: false, position: { x: 535, y: 210 } },
+        onRescan() {}, onSettingsChange() {}, onClear() {}
+      });
+      widget.setItems([
+        {
+          scope: 'chat', bucketId: 'short', label: 'Chat 短周期', remainingPercent: 68,
+          remainingCount: null, unit: '', resetAt: null, resetText: '18:30',
+          capturedAt: Date.now(), source: '独立测试数据', freshness: 'fresh'
+        },
+        {
+          scope: 'work-codex', bucketId: 'week', label: 'Codex 周额度', remainingPercent: 31,
+          remainingCount: null, unit: '', resetAt: null, resetText: 'Friday 10:00',
+          capturedAt: Date.now(), source: '独立测试数据', freshness: 'fresh'
+        }
+      ]);
+      window.testWidget = widget;
+      document.documentElement.dataset.ready = 'true';
+    });
+  </script>
+</body>
+</html>

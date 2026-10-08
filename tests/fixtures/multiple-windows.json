@@ -1,0 +1,14 @@
+{
+  "name": "多个额度窗口",
+  "blocks": [
+    {
+      "testFixture": true,
+      "heading": "Work / Codex 用量",
+      "source": "测试用量面板",
+      "buckets": [
+        { "label": "短周期", "scope": "work-codex", "bucketId": "short", "text": "剩余 72%" },
+        { "label": "周额度", "scope": "work-codex", "bucketId": "week", "text": "剩余 28%" }
+      ]
+    }
+  ]
+}

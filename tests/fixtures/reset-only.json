@@ -1,0 +1,14 @@
+{
+  "name": "只有恢复时间",
+  "blocks": [
+    {
+      "testFixture": true,
+      "heading": "Chat 使用限制",
+      "label": "Chat",
+      "scope": "chat",
+      "bucketId": "message-window",
+      "text": "可再次使用：18:30",
+      "source": "测试限制提示"
+    }
+  ]
+}

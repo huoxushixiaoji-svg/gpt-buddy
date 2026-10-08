@@ -1,0 +1,14 @@
+{
+  "name": "页面显示已用 35%",
+  "blocks": [
+    {
+      "testFixture": true,
+      "heading": "Work / Codex 用量",
+      "label": "Codex 周额度",
+      "scope": "work-codex",
+      "bucketId": "weekly",
+      "text": "已用 35%\n重置：Friday 10:00",
+      "source": "测试用量面板"
+    }
+  ]
+}

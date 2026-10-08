@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>GPT 小伙伴 Content Script 集成测试</title>
+</head>
+<body>
+  <div role="alert" aria-label="Chat 用量">
+    <span>剩余 35%</span>
+    <span>恢复：18:30</span>
+  </div>
+  <script>
+    window.testMessages = [];
+    const storageListeners = new Set();
+    window.chrome = {
+      runtime: {
+        getURL(path) { return new URL('../' + path, location.href).href; },
+        async sendMessage(message) {
+          testMessages.push(message);
+          if (message.type === 'GET_STATE') {
+            return { ok: true, settings: { visible: true, scale: 1, animationEnabled: false, position: { x: 500, y: 180 } }, snapshots: {} };
+          }
+          return { ok: true };
+        }
+      },
+      storage: {
+        onChanged: {
+          addListener(listener) { storageListeners.add(listener); },
+          removeListener(listener) { storageListeners.delete(listener); }
+        }
+      }
+    };
+  </script>
+  <script src="../parser.js"></script>
+  <script src="../state.js"></script>
+  <script src="../widget.js"></script>
+  <script src="../content.js"></script>
+  <script>
+    setTimeout(() => {
+      const duplicate = document.createElement('script');
+      duplicate.src = '../content.js';
+      duplicate.onload = () => { document.documentElement.dataset.ready = 'true'; };
+      document.body.append(duplicate);
+    }, 500);
+  </script>
+</body>
+</html>
