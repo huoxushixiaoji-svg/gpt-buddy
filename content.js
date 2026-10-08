@@ -31,7 +31,7 @@
     :host([hidden]){display:none!important}
     .buddy-frame{position:relative;width:360px;height:342px;pointer-events:none}.buddy-visual{position:absolute;inset:0;width:360px;height:342px;transform-origin:65% 100%;pointer-events:none}.buddy-character{position:absolute;inset:0;width:360px;height:342px;object-fit:contain}
     .buddy-bubble{position:absolute;left:18px;top:27px;width:185px;height:104px;display:grid;place-items:center;padding:8px 14px;color:#211d25;pointer-events:auto;overflow:hidden}
-    .buddy-message{margin:0;font-size:13px;font-weight:700;line-height:1.4}.buddy-details{font-size:9px;max-height:90px;overflow:auto}.buddy-details[hidden],.buddy-message[hidden],.buddy-menu[hidden]{display:none!important}
+    .buddy-message{margin:0;font-size:13px;font-weight:700;line-height:1.4}.buddy-details{font-size:14px;line-height:1.2;max-height:88px;overflow:auto}.detail-value{font-size:17px;font-weight:800}.buddy-details[hidden],.buddy-message[hidden],.buddy-menu[hidden]{display:none!important}
     .character-hit{position:absolute;right:10px;bottom:0;width:235px;height:235px;border:0;background:transparent;pointer-events:auto}.menu-trigger{position:absolute;right:8px;top:114px;pointer-events:auto}
     .buddy-menu{position:absolute;right:8px;top:145px;width:170px;padding:7px;background:#fff;color:#222;border:1px solid #888;border-radius:10px;pointer-events:auto}.buddy-menu button{display:block;width:100%;min-height:32px}
     .animations-on.is-squashing .buddy-visual{animation:buddy-squash .5s ease}@keyframes buddy-squash{0%,100%{transform:none}35%{transform:translateY(36px) scale(1.1,.72)}65%{transform:translateY(-5px) scale(.97,1.05)}}

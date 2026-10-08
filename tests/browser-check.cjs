@@ -28,8 +28,8 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
     overview.on('pageerror', (err) => errors.push(String(err)));
     await overview.goto(base + '/tests/usage-overview-harness.html');
     await overview.waitForSelector('html[data-ready=true]');
-    assert.deepEqual(await overview.evaluate(() => testUsageItems.map((item) => [item.quotaKind, item.remainingPercent])),
-      [['five-hour', 68], ['weekly', 65]]);
+    assert.deepEqual(await overview.evaluate(() => testUsageItems.map((item) => [item.quotaKind, item.remainingPercent, item.resetCardCount])),
+      [['five-hour', 68, null], ['weekly', 65, 1]]);
     const originalFiveHourId = await overview.evaluate(() => testUsageItems.find((item) => item.quotaKind === 'five-hour').bucketId);
     const updatedFiveHour = await overview.evaluate(() => {
       document.querySelector('#five-hour-reading').textContent = '5 小时额度 剩余 51%';
@@ -39,6 +39,30 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
     });
     assert.equal(updatedFiveHour.bucketId, originalFiveHourId);
     assert.equal(updatedFiveHour.remainingPercent, 51);
+    const zeroResetAllowance = await overview.evaluate(() => {
+      document.querySelector('#reset-allowance').textContent = '0';
+      return GPTBuddy.parser.scanVisibleUsage(document, {
+        now: Date.now(), location: { hostname: 'chatgpt.com', pathname: '/settings/usage', search: '?tab=overview' }
+      });
+    });
+    assert.equal(zeroResetAllowance.length, 2);
+    assert.equal(zeroResetAllowance.find((item) => item.quotaKind === 'weekly').resetCardCount, 0);
+    const cardWithoutWeeklyBalance = await overview.evaluate(() => {
+      document.querySelectorAll('article')[1].remove();
+      return GPTBuddy.parser.scanVisibleUsage(document, {
+        now: Date.now(), location: { hostname: 'chatgpt.com', pathname: '/settings/usage', search: '?tab=overview' }
+      }).find((item) => item.quotaKind === 'weekly');
+    });
+    assert.equal(cardWithoutWeeklyBalance.remainingPercent, null);
+    assert.equal(cardWithoutWeeklyBalance.resetCardCount, 0);
+    const flatResetLayout = await overview.evaluate(() => {
+      const section = document.querySelector('section[aria-label="使用限额重置"]');
+      section.replaceWith(...section.childNodes);
+      return GPTBuddy.parser.scanVisibleUsage(document, {
+        now: Date.now(), location: { hostname: 'chatgpt.com', pathname: '/settings/usage', search: '?tab=overview' }
+      });
+    });
+    assert.equal(flatResetLayout.find((item) => item.quotaKind === 'weekly').resetCardCount, 0);
     await overview.close();
     const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
     page.on('pageerror', (err) => errors.push(String(err)));
@@ -114,7 +138,7 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
     await sourcePage.route('https://chatgpt.com/**', async (route) => {
       const pathname = new URL(route.request().url()).pathname;
       if (pathname === '/settings/usage') {
-        await route.fulfill({ contentType: 'text/html', body: '<main><h1>Usage</h1><section><h2>Codex</h2><article><h3>5 hour limit</h3><div id="reading">68% left</div><div>Resets 18:30</div></article><article><h3>Weekly limit</h3><div>35% used</div><div>Resets Friday 10:00</div></article><article><h3>余额重置卡</h3><div id="reset-card-count">2 次</div></article></section></main><script src="/parser.js"></script><script src="/state.js"></script><script src="/widget.js"></script><script src="/content.js"></script>' });
+        await route.fulfill({ contentType: 'text/html', body: '<main><h1>Usage</h1><section><h2>Codex</h2><article><h3>5 hour limit</h3><div id="reading">68% left</div><div>Resets 18:30</div></article><article><h3>Weekly limit</h3><div>35% used</div><div>Resets Friday 10:00</div></article><section><h3>使用限额重置</h3><p>使用一次重置，即可恢复你的 5 小时限额、每周限额，或同时恢复两者</p><div>可用 <span id="reset-allowance-source">2</span> 历史记录</div><div>完全重置（每周 + 5 小时）</div><div>将于 11 月 7 日 GMT+8 05:25 到期</div></section></section></main><script src="/parser.js"></script><script src="/state.js"></script><script src="/widget.js"></script><script src="/content.js"></script>' });
       } else {
         const target = path.join(root, pathname);
         try { await route.fulfill({ body: await fs.readFile(target), contentType: mime[path.extname(target)] || 'text/plain' }); }
@@ -129,9 +153,9 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
     await page.waitForFunction(() => document.querySelector('#gpt-buddy-host').shadowRoot.querySelector('.detail-value').textContent.includes('52%'));
     assert.equal(data.backgroundUsage.items[0].remainingPercent, 52);
     assert.match(await page.locator('#gpt-buddy-host .detail-line').nth(2).textContent(), /18:30/);
-    await sourcePage.evaluate(() => { document.querySelector('#reset-card-count').firstChild.nodeValue = '1 次'; });
+    await sourcePage.evaluate(() => { document.querySelector('#reset-allowance-source').firstChild.nodeValue = '1'; });
     await page.locator('#gpt-buddy-host .character-hit').click();
-    await page.waitForFunction(() => document.querySelector('#gpt-buddy-host').shadowRoot.querySelector('.buddy-bubble').textContent.includes('余额重置卡：1 次'));
+    await page.waitForFunction(() => document.querySelector('#gpt-buddy-host').shadowRoot.querySelector('.buddy-bubble').textContent.includes('额度充值卡：1 次'));
     assert.match(await value.textContent(), /65%/);
     await page.locator('#gpt-buddy-host .character-hit').click();
     await sourcePage.evaluate(() => {
@@ -158,7 +182,7 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
           return { ok: true, settings };
         } },
         storage: { onChanged: { addListener(cb) { listeners.add(cb); } } },
-        tabs: { query: (q, cb) => cb([{ id: 99 }]), sendMessage: (id, m, cb) => cb({ ok: true, version: '0.4.1' }) }
+        tabs: { query: (q, cb) => cb([{ id: 99 }]), sendMessage: (id, m, cb) => cb({ ok: true, version: '0.4.2' }) }
       };
     });
     await popup.goto(base + '/popup.html');
@@ -178,11 +202,21 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
     assert.equal((await ui.locator('#gpt-buddy-host .buddy-bubble').textContent()).includes('点击角色切换'), false);
     assert.match(await ui.locator('#gpt-buddy-host .buddy-bubble').textContent(), /5 小时额度.*68%/);
     await hit.click();
-    assert.match(await ui.locator('#gpt-buddy-host .buddy-bubble').textContent(), /周额度.*31%.*余额重置卡：2 次/);
+    assert.match(await ui.locator('#gpt-buddy-host .buddy-bubble').textContent(), /周额度.*31%.*额度充值卡：2 次/);
+    const bubbleLayout = await ui.locator('#gpt-buddy-host .buddy-bubble').evaluate((bubbleElement) => {
+      const bubbleRect = bubbleElement.getBoundingClientRect();
+      const detailsElement = bubbleElement.querySelector('.buddy-details');
+      const detailsRect = detailsElement.getBoundingClientRect();
+      return { inside: detailsRect.left >= bubbleRect.left && detailsRect.right <= bubbleRect.right
+        && detailsRect.top >= bubbleRect.top && detailsRect.bottom <= bubbleRect.bottom,
+      fitsWithoutScroll: detailsElement.scrollHeight <= detailsElement.clientHeight };
+    });
+    assert.deepEqual(bubbleLayout, { inside: true, fitsWithoutScroll: true });
     await ui.waitForTimeout(160);
     assert.notEqual(await ui.locator('#gpt-buddy-host .buddy-visual').evaluate((el) => getComputedStyle(el).transform), 'none');
     await ui.waitForTimeout(420);
     assert.equal(await ui.locator('#gpt-buddy-host .buddy-visual').evaluate((el) => getComputedStyle(el).transform), 'none');
+    await ui.screenshot({ path: '/tmp/gpt-buddy-v0.4.2-weekly.png' });
     const beforeDrag = await ui.locator('#gpt-buddy-host .buddy-bubble').textContent();
     const hitBox = await hit.boundingBox();
     await ui.mouse.move(hitBox.x + hitBox.width / 2, hitBox.y + hitBox.height / 2);
@@ -195,7 +229,7 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
     assert.match(await ui.locator('#gpt-buddy-host .buddy-bubble').textContent(), /5 小时额度.*68%/);
     bubble = await ui.locator('#gpt-buddy-host .buddy-bubble').textContent();
     assert.equal(/采集|来源|新近快照|重新读取/.test(bubble), false);
-    await ui.screenshot({ path: '/tmp/gpt-buddy-v0.4.1-ui.png' });
+    await ui.screenshot({ path: '/tmp/gpt-buddy-v0.4.2-ui.png' });
     await hit.click({ button: 'right' });
     assert.equal(await ui.locator('#gpt-buddy-host .buddy-menu').isVisible(), true);
     await ui.keyboard.press('Escape');

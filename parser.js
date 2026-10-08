@@ -26,6 +26,8 @@
   const RESET_TEXT = /(?:重置(?!卡)|恢复|可再次使用|reset(?:s)?(?!\s+cards?)|available\s+again)\s*[:：]?\s*([^\n。；;]{1,80})/i;
   const RESET_CARD_LABEL = /(?:余额重置卡|(?:balance\s+)?reset\s+cards?)/i;
   const RESET_CARD_COUNT = /(?:余额重置卡(?:次数|数量|剩余)?|(?:balance\s+)?reset\s+cards?)\s*[:：]?\s*(?:剩余\s*)?(\d{1,4})(?![\d.%])\s*(?:张|次|cards?)?/i;
+  const USAGE_LIMIT_RESET_HEADING = '使用限额重置';
+  const USAGE_LIMIT_RESET_AVAILABLE = /(?:^|\s)可用\s*[:：]?\s*(\d{1,4})(?![\d.%])/;
   const LIMIT_REACHED = /(?:已达到(?:[^\n]{0,16})限制|额度已用完|达到上限|limit\s+reached|you(?:'ve| have)\s+reached)/i;
   const REMAINING_COUNT = /(?:剩余|还剩|可用|remaining|left)\s*[:：]?\s*(\d+)\s*(次|条|messages?|requests?|uses?)/i;
   const REMAINING_COUNT_SUFFIX = /(\d+)\s*(次|条|messages?|requests?|uses?)\s*(?:剩余|可用|remaining|left)/i;
@@ -278,6 +280,42 @@
     return nodes;
   }
 
+  function usageLimitResetRegion(main, nodes) {
+    for (const node of nodes) {
+      if (normalizeText(node.nodeValue) !== USAGE_LIMIT_RESET_HEADING) continue;
+      let current = node.parentElement;
+      let fallback = null;
+      for (let depth = 0; current && current !== main && depth < 7; depth += 1, current = current.parentElement) {
+        const text = elementText(current);
+        if (text.length > 600) break;
+        if (!text.startsWith(USAGE_LIMIT_RESET_HEADING)) continue;
+        if (!/(?:可用|历史记录|完全重置)/.test(text.slice(USAGE_LIMIT_RESET_HEADING.length))) continue;
+        const match = text.match(USAGE_LIMIT_RESET_AVAILABLE);
+        if (match) return { container: current, count: Number(match[1]) };
+        fallback ||= current;
+      }
+      if (fallback) return { container: fallback, count: null };
+      // Some layouts place the heading and the card in adjacent siblings under
+      // main. In that case, inspect only the immediately following visible
+      // text nodes, stopping at the next heading or before another section.
+      const start = nodes.indexOf(node);
+      const nearbyNodes = [node];
+      let nearbyText = '';
+      for (let index = start + 1; index < Math.min(start + 13, nodes.length); index += 1) {
+        const next = nodes[index];
+        if (next.parentElement.closest('h1, h2, h3, h4, [role="heading"]')) break;
+        nearbyText = normalizeText(`${nearbyText} ${next.nodeValue}`);
+        if (nearbyText.length > 320) break;
+        nearbyNodes.push(next);
+        if (!nearbyText.includes('使用一次重置')) continue;
+        const match = nearbyText.match(USAGE_LIMIT_RESET_AVAILABLE);
+        if (match) return { container: null, count: Number(match[1]), nodes: new Set(nearbyNodes) };
+      }
+      return { container: null, count: null, nodes: new Set(nearbyNodes) };
+    }
+    return { container: null, count: null };
+  }
+
   function usageBucketLabel(container, signalElement) {
     const heading = headingFor(container);
     if (quotaKindForLabel(heading) && !VALUE_SIGNAL.test(heading) && !RESET_TEXT.test(heading)) return heading;
@@ -315,20 +353,29 @@
     if (!main || !isVisible(main) || isExcluded(main)) return [];
 
     const allNodes = visibleTextNodes(main);
-    let resetCardCount = null;
-    for (const node of allNodes) {
-      if (!RESET_CARD_LABEL.test(normalizeText(node.nodeValue))) continue;
-      let current = node.parentElement;
-      for (let depth = 0; current && current !== main && depth < 4; depth += 1, current = current.parentElement) {
-        const text = elementText(current);
-        if (text.length > 120) break;
-        const count = parseResetCardCount(text);
-        if (count !== null) { resetCardCount = count; break; }
+    const resetRegion = usageLimitResetRegion(main, allNodes);
+    let resetCardCount = resetRegion.count;
+    // Keep compatibility with an explicitly labelled card, but never use the
+    // quota's own reset date or an unrelated "可用" value as a card count.
+    if (resetCardCount === null) {
+      for (const node of allNodes) {
+        if (resetRegion.container && resetRegion.container.contains(node)) continue;
+        if (!RESET_CARD_LABEL.test(normalizeText(node.nodeValue))) continue;
+        let current = node.parentElement;
+        for (let depth = 0; current && current !== main && depth < 4; depth += 1, current = current.parentElement) {
+          const text = elementText(current);
+          if (text.length > 120) break;
+          const count = parseResetCardCount(text);
+          if (count !== null) { resetCardCount = count; break; }
+        }
+        if (resetCardCount !== null) break;
       }
-      if (resetCardCount !== null) break;
     }
-    const valueNodes = allNodes.filter((node) => VALUE_SIGNAL.test(normalizeText(node.nodeValue)));
-    const resetNodes = allNodes.filter((node) => !RESET_CARD_LABEL.test(normalizeText(node.nodeValue)) && parseResetText(node.nodeValue));
+    const outsideResetRegion = (node) => (!resetRegion.container || !resetRegion.container.contains(node))
+      && (!resetRegion.nodes || !resetRegion.nodes.has(node));
+    const valueNodes = allNodes.filter((node) => outsideResetRegion(node) && VALUE_SIGNAL.test(normalizeText(node.nodeValue)));
+    const resetNodes = allNodes.filter((node) => outsideResetRegion(node)
+      && !RESET_CARD_LABEL.test(normalizeText(node.nodeValue)) && parseResetText(node.nodeValue));
     const containers = [];
 
     for (const node of valueNodes) {

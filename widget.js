@@ -131,7 +131,7 @@
       if (!item) {
         valueLine.textContent = '余额：暂无准确数据';
         resetLine.textContent = '';
-        cardLine.textContent = kind === 'weekly' ? '余额重置卡：暂无数据' : '';
+        cardLine.textContent = kind === 'weekly' ? '额度充值卡：暂无数据' : '';
       } else {
         const pending = NS.state.freshnessFor(item, now) !== 'fresh' || item.observationStatus === 'history' || item.updatePending;
         const value = Number.isFinite(item.remainingPercent) ? `${item.remainingPercent}%`
@@ -142,7 +142,7 @@
         const validResetText = item.resetText ? NS.parser.parseResetText(`重置：${item.resetText}`) : '';
         resetLine.textContent = validResetText ? `重置：${validResetText}` : '';
         cardLine.textContent = kind === 'weekly'
-          ? `余额重置卡：${Number.isSafeInteger(item.resetCardCount) && item.resetCardCount >= 0 ? `${item.resetCardCount} 次` : '暂无数据'}`
+          ? `额度充值卡：${Number.isSafeInteger(item.resetCardCount) && item.resetCardCount >= 0 ? `${item.resetCardCount} 次` : '暂无数据'}`
           : '';
       }
       resetLine.title = resetLine.textContent;
