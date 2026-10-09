@@ -48,7 +48,7 @@ button { font: inherit; }
   height: 121px;
   display: grid;
   place-items: center;
-  padding: 9px 18px 10px 17px;
+  padding: 7px 15px 8px 15px;
   overflow: hidden;
   color: #211d25;
   pointer-events: auto;
@@ -65,17 +65,15 @@ button { font: inherit; }
 }
 .buddy-details {
   width: 100%;
-  max-height: 100px;
-  overflow: auto;
-  scrollbar-width: thin;
-  font-size: 16px;
-  line-height: 1.12;
+  overflow: visible;
+  font-size: 17px;
+  line-height: 1.08;
   user-select: text;
 }
 .buddy-details[hidden], .buddy-message[hidden], .buddy-menu[hidden] { display: none !important; }
-.detail-view { font-size: 15px; font-weight: 700; color: #605866; }
+.detail-view { font-size: .94em; font-weight: 700; color: #605866; }
 .detail-line { margin: 0; overflow-wrap: anywhere; }
-.detail-value { font-size: 22px; font-weight: 800; }
+.detail-value { font-size: 1.36em; font-weight: 800; }
 .pending-badge { display: inline-block; margin-left: 4px; font-size: 10px; color: #77606e; font-weight: 400; }
 .detail-muted { color: #605866; }
 .bubble-button {

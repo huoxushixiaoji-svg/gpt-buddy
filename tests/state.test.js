@@ -40,6 +40,18 @@ test('只对新近且确定的恢复时间显示倒计时', () => {
   assert.equal(state.resetTimeRemaining(snapshot, snapshot.resetAt), '');
 });
 
+test('页面相对时间文字未变时不将恢复时刻反复往后推', () => {
+  const session = state.createSnapshotSession();
+  const first = item({ capturedAt: 1_000_000, resetAt: 1_000_000 + 285 * 60000,
+    resetText: '4 小时 45 分钟后重置', resetTimeSource: 'relative' });
+  session.read([first]);
+  const later = { ...first, capturedAt: first.capturedAt + 60_000, resetAt: first.resetAt + 60_000 };
+  assert.equal(session.read([later]).items[0].resetAt, first.resetAt);
+  assert.equal(session.read([later], { manual: true }).items[0].resetAt, first.resetAt);
+  session.leave();
+  assert.equal(session.read([later]).items[0].resetAt, later.resetAt);
+});
+
 test('升级时自动启用后台读取，之后尊重用户关闭选择', () => {
   assert.equal(settingsForAutomaticReader(null).backgroundRefreshEnabled, true);
   const migrated = settingsForAutomaticReader({ visible: false, backgroundRefreshEnabled: false });

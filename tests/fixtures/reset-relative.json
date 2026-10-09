@@ -1,0 +1,21 @@
+{
+  "name": "用量卡片中的相对恢复时间",
+  "blocks": [
+    {
+      "routeVerified": true,
+      "scope": "work-codex",
+      "bucketId": "five-hour",
+      "label": "5 小时限额",
+      "text": "剩余 35%\n4 小时 45 分钟后重置",
+      "source": "测试用量页"
+    },
+    {
+      "routeVerified": true,
+      "scope": "work-codex",
+      "bucketId": "weekly",
+      "label": "每周限额",
+      "text": "剩余 68%\n5 天 1 小时后重置",
+      "source": "测试用量页"
+    }
+  ]
+}

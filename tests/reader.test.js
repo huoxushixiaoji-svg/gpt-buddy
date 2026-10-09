@@ -28,6 +28,7 @@ function setup() {
     tabs: {
       async create(options) { const tab = { id: nextTab++, ...options }; tabs.set(tab.id, tab); effects.push(['create', tab.id, options.active]); return tab; },
       async get(id) { if (!tabs.has(id)) throw new Error('missing-tab'); return { ...tabs.get(id) }; },
+      async update(id, patch) { Object.assign(tabs.get(id), patch); effects.push(['update', id, patch]); return { ...tabs.get(id) }; },
       async reload(id) { effects.push(['reload', id]); },
       async remove(id) { effects.push(['remove', id]); tabs.delete(id); }
     },
@@ -47,7 +48,20 @@ test('开启只创建一个非活动后台页，处理中不会重复创建或�
   const f = setup(); const reader = f.newReader();
   await reader.setEnabled(true); await reader.poll();
   assert.deepEqual(f.effects, [['create', 1, false]]);
+  assert.equal(f.tabs.get(1).pinned, true);
   assert.equal(f.alarms.get(POLL_ALARM).periodInMinutes, 1);
+});
+
+test('升级前已有的后台页在下一轮缩成固定标签', async () => {
+  const f = setup(); const reader = f.newReader();
+  await reader.setEnabled(true);
+  const first = await reader.captureFor(f.sender());
+  await reader.accept({ ...first, items: [ITEM] }, f.sender());
+  f.tabs.get(1).pinned = false;
+  f.api.storage.session.values.usageReaderRuntime.pinnedAttempted = false;
+  f.advance(60_000); await reader.poll();
+  assert.equal(f.tabs.get(1).pinned, true);
+  assert.equal(f.effects.filter(([type]) => type === 'update').length, 1);
 });
 
 test('休眠后实例从 session 恢复；旧文档和旧请求不能覆盖新结果', async () => {

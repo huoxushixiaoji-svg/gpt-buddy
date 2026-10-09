@@ -133,7 +133,7 @@
         valueLine.textContent = '余额：暂无准确数据';
         resetLine.textContent = '';
         countdownLine.textContent = '';
-        cardLine.textContent = kind === 'weekly' ? '额度充值卡：暂无数据' : '';
+        cardLine.textContent = kind === 'weekly' ? '限额重置次数：暂无数据' : '';
       } else {
         const pending = NS.state.freshnessFor(item, now) !== 'fresh' || item.observationStatus === 'history' || item.updatePending;
         const value = Number.isFinite(item.remainingPercent) ? `${item.remainingPercent}%`
@@ -142,15 +142,34 @@
         valueLine.textContent = `${pending ? '上次余额' : '余额'}：${value}`;
         if (pending) valueLine.append(createElement(doc, 'small', 'pending-badge', '待更新'));
         const validResetText = item.resetText ? NS.parser.parseResetText(`重置：${item.resetText}`) : '';
-        resetLine.textContent = validResetText
-          ? `重置：${Number.isFinite(item.resetAt) ? NS.state.formatResetMoment(item.resetAt) : validResetText}` : '';
         const remaining = NS.state.resetTimeRemaining(item, now);
-        countdownLine.textContent = remaining ? `还剩：${remaining}` : '';
+        if (item.resetTimeSource === 'relative') {
+          resetLine.textContent = pending ? '重置：待更新' : remaining ? '' : validResetText ? `重置：${validResetText}` : '';
+          countdownLine.textContent = remaining ? `约还剩：${remaining}` : '';
+        } else {
+          resetLine.textContent = validResetText
+            ? `重置：${Number.isFinite(item.resetAt) ? NS.state.formatResetMoment(item.resetAt) : validResetText}` : '';
+          countdownLine.textContent = remaining ? `还剩：${remaining}` : '';
+        }
         cardLine.textContent = kind === 'weekly'
-          ? `额度充值卡：${Number.isSafeInteger(item.resetCardCount) && item.resetCardCount >= 0 ? `${item.resetCardCount} 次` : '暂无数据'}`
+          ? `限额重置次数：${Number.isSafeInteger(item.resetCardCount) && item.resetCardCount >= 0 ? `${item.resetCardCount} 次` : '暂无数据'}`
           : '';
       }
       resetLine.title = item?.resetText || resetLine.textContent;
+      countdownLine.title = item?.resetText || countdownLine.textContent;
+      fitDetails();
+    }
+
+    function fitDetails() {
+      if (!bubble.clientHeight) return;
+      const style = global.getComputedStyle(bubble);
+      const room = bubble.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+      let size = 17;
+      details.style.fontSize = `${size}px`;
+      while (details.scrollHeight > room + 1 && size > 12) {
+        size -= .5;
+        details.style.fontSize = `${size}px`;
+      }
     }
 
     function renderSettings() {

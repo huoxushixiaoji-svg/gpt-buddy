@@ -45,10 +45,10 @@
       const rest = minutes % 60;
       return `${hours}小时${rest ? `${rest}分` : ''}`;
     }
-    const days = Math.floor(minutes / 1440);
-    const hours = Math.floor((minutes % 1440) / 60);
-    const remainder = minutes % 60;
-    return `${remainder ? '约' : ''}${days}天${hours ? `${hours}小时` : ''}`;
+    const roundedHours = Math.ceil(minutes / 60);
+    const days = Math.floor(roundedHours / 24);
+    const hours = roundedHours % 24;
+    return `约${days}天${hours ? `${hours}小时` : ''}`;
   }
 
   function formatResetMoment(timestamp) {
@@ -104,7 +104,8 @@
     const keyFor = (item) => JSON.stringify([item.scope, item.bucketId]);
     const fingerprint = (item) => JSON.stringify([
       item.scope, item.bucketId, item.label, item.remainingPercent, item.remainingCount,
-      item.unit, item.resetAt, item.resetText, item.resetCardCount, item.quotaKind, item.source, Boolean(item.limitReached)
+      item.unit, item.resetAt, item.resetText, item.resetTimeSource, item.resetCardCount,
+      item.quotaKind, item.source, Boolean(item.limitReached)
     ]);
     function view() {
       return Array.from(snapshots, ([key, item]) => ({
@@ -120,10 +121,16 @@
           nextObserved.add(key);
           const old = snapshots.get(key);
           if (old && old.capturedAt > item.capturedAt) continue;
+          // A page can leave rounded relative text unchanged across DOM updates.
+          // Keep its first observed target instead of pushing it later on each scan.
+          const stableItem = old && observed.has(key) && item.resetTimeSource === 'relative'
+            && old.resetTimeSource === 'relative' && old.resetText === item.resetText
+            && Number.isFinite(old.resetAt)
+            ? { ...item, resetAt: old.resetAt } : item;
           // Unrelated mutations must not keep an unchanged snapshot fresh forever.
-          if (old && observed.has(key) && !manual && fingerprint(old) === fingerprint(item)) continue;
-          snapshots.set(key, { ...item });
-          changed.push({ ...item });
+          if (old && observed.has(key) && !manual && fingerprint(old) === fingerprint(stableItem)) continue;
+          snapshots.set(key, { ...stableItem });
+          changed.push({ ...stableItem });
         }
         observed = nextObserved;
         return { items: view(), changed };

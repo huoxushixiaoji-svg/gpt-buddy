@@ -24,6 +24,9 @@
   const REMAINING_PERCENT = /(?:剩余|还剩|可用|remaining|left)\s*[:：]?\s*(\d{1,3}(?:\.\d+)?)\s*%/i;
   const REMAINING_PERCENT_SUFFIX = /(\d{1,3}(?:\.\d+)?)\s*%\s*(?:剩余|可用|remaining|left)/i;
   const RESET_TEXT = /(?:重置(?!卡)|恢复|可再次使用|reset(?:s)?(?!\s+cards?)|available\s+again)\s*[:：]?\s*([^\n。；;]{1,80})/i;
+  // The overview cards also say "4 小时 45 分钟后重置". This is a duration
+  // observed at capture time, not a calendar time inferred from the quota name.
+  const RELATIVE_RESET = /(?:(\d{1,3})\s*天\s*)?(?:(\d{1,2})\s*(?:小时|小時)\s*)?(?:(\d{1,2})\s*分(?:钟|鐘)?\s*)?后\s*重置/;
   const RESET_CARD_LABEL = /(?:余额重置卡|(?:balance\s+)?reset\s+cards?)/i;
   const RESET_CARD_COUNT = /(?:余额重置卡(?:次数|数量|剩余)?|(?:balance\s+)?reset\s+cards?)\s*[:：]?\s*(?:剩余\s*)?(\d{1,4})(?![\d.%])\s*(?:张|次|cards?)?/i;
   const USAGE_LIMIT_RESET_HEADING = '使用限额重置';
@@ -66,6 +69,14 @@
   function parseResetAt(rawText, now) {
     if (!rawText) return null;
     const text = normalizeText(rawText);
+    const relative = text.match(RELATIVE_RESET);
+    if (relative && relative[0] === text && (relative[1] || relative[2] || relative[3])) {
+      const days = Number(relative[1] || 0);
+      const hours = Number(relative[2] || 0);
+      const minutes = Number(relative[3] || 0);
+      if (days > 30 || hours > 23 || minutes > 59) return null;
+      return Number(now || Date.now()) + ((days * 24 + hours) * 60 + minutes) * 60000;
+    }
     // A countdown needs a complete date and an explicit timezone. A local time
     // such as "18:30" remains plain text because its date is ambiguous.
     const absolute = text.match(/\b(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:?\d{2}))\b/);
@@ -109,6 +120,8 @@
   }
 
   function parseResetText(text) {
+    const relative = normalizeText(text).match(RELATIVE_RESET);
+    if (relative && (relative[1] || relative[2] || relative[3])) return normalizeText(relative[0]);
     const match = normalizeText(text).match(RESET_TEXT);
     if (!match) return '';
     const candidate = normalizeText(match[1].split(RESET_CARD_LABEL)[0]);
@@ -117,8 +130,8 @@
     if (absolute) return absolute[0];
     const dateOrTime = candidate.match(/^(.*?(?:\b\d{1,2}:\d{2}(?::\d{2})?\b|\b\d{4}-\d{2}-\d{2}\b))/i);
     if (dateOrTime) return normalizeText(dateOrTime[1]);
-    const relative = candidate.match(/^(.*?(?:\b\d+\s*(?:minutes?|hours?|days?)\b|\d+\s*(?:分钟|小时|小時|天)(?:后|後)?))/i);
-    return relative ? normalizeText(relative[1]) : '';
+    const remainingTime = candidate.match(/^(.*?(?:\b\d+\s*(?:minutes?|hours?|days?)\b|\d+\s*(?:分钟|小时|小時|天)(?:后|後)?))/i);
+    return remainingTime ? normalizeText(remainingTime[1]) : '';
   }
 
   function parseResetCardCount(text) {
@@ -183,6 +196,7 @@
           unit: countMatch ? normalizeText(countMatch[2]) : '',
           resetAt: parseResetAt(resetText, now),
           resetText,
+          resetTimeSource: RELATIVE_RESET.test(resetText) ? 'relative' : 'absolute',
           capturedAt: now,
           source: normalizeText(block.source || '当前可见的用量提示'),
           freshness: 'fresh',
@@ -333,7 +347,8 @@
     if (quotaKindForLabel(heading) && !VALUE_SIGNAL.test(heading) && !RESET_TEXT.test(heading)) return heading;
     const nodes = visibleTextNodes(container);
     const signalIndex = nodes.findIndex((node) => node === signalElement || node.parentElement === signalElement || signalElement.contains(node));
-    const end = signalIndex >= 0 ? signalIndex + 1 : nodes.length;
+    const resetIndex = signalElement === container ? nodes.findIndex((node) => parseResetText(node.nodeValue)) : -1;
+    const end = resetIndex >= 0 ? resetIndex : signalIndex >= 0 ? signalIndex + 1 : nodes.length;
     for (let index = end - 1; index >= 0; index -= 1) {
       const text = normalizeText(nodes[index].nodeValue);
       const quotaLabel = quotaLabelBeforeValue(text);
@@ -387,7 +402,8 @@
       && (!resetRegion.nodes || !resetRegion.nodes.has(node));
     const valueNodes = allNodes.filter((node) => outsideResetRegion(node) && VALUE_SIGNAL.test(normalizeText(node.nodeValue)));
     const resetNodes = allNodes.filter((node) => outsideResetRegion(node)
-      && !RESET_CARD_LABEL.test(normalizeText(node.nodeValue)) && parseResetText(node.nodeValue));
+      && !RESET_CARD_LABEL.test(normalizeText(node.nodeValue))
+      && (parseResetText(node.nodeValue) || /后\s*重置/.test(normalizeText(node.nodeValue))));
     const containers = [];
 
     for (const node of valueNodes) {

@@ -89,6 +89,16 @@ test('中文完整日期加 GMT 时区可算恢复时间；缺少年份时保留
   assert.equal(withoutYear.resetAt, null);
 });
 
+test('用量卡片中的“X 小时 X 分钟后重置”和“X 天 X 小时后重置”分别读取', () => {
+  const now = Date.parse('2026-10-09T00:00:00Z');
+  const items = parser.parseUsageBlocks(fixture('reset-relative.json').blocks, { now, onlyTrackedQuotas: true });
+  assert.deepEqual(items.map((item) => item.resetText), ['4 小时 45 分钟后重置', '5 天 1 小时后重置']);
+  assert.deepEqual(items.map((item) => item.resetTimeSource), ['relative', 'relative']);
+  assert.deepEqual(items.map((item) => item.resetAt), [now + 285 * 60000, now + 121 * 3600000]);
+  assert.equal(parser.parseResetAt('5 小时额度', now), null);
+  assert.equal(parser.parseResetAt('31 天后重置', now), null);
+});
+
 test('overview 适配只在指定 ChatGPT 用量路由启用', () => {
   assert.equal(parser.isUsageOverviewLocation({ hostname: 'chatgpt.com', pathname: '/settings/usage', search: '?tab=overview' }), true);
   assert.equal(parser.isUsageOverviewLocation({ hostname: 'chatgpt.com', pathname: '/c/example', search: '' }), false);

@@ -27,6 +27,7 @@
       unit: typeof item.unit === 'string' ? item.unit.slice(0, 30) : '',
       resetAt: typeof item.resetAt === 'number' && Number.isFinite(item.resetAt) ? item.resetAt : null,
       resetText: typeof item.resetText === 'string' ? item.resetText.slice(0, 120) : '',
+      resetTimeSource: item.resetTimeSource === 'relative' ? 'relative' : 'absolute',
       capturedAt: now,
       source: 'ChatGPT 用量页（扩展后台标签页）',
       freshness: 'fresh',
@@ -79,9 +80,12 @@
         await publish({ status: 'waiting-active' });
         return;
       }
+      if (tab && !old.pinnedAttempted && api.tabs.update) {
+        try { await api.tabs.update(tab.id, { pinned: true }); } catch { /* Keep reading if pinning is unavailable. */ }
+      }
       const next = {
         tabId: tab?.id ?? null, captureId: id(), previousDocumentId: tab ? old.documentId : null,
-        documentId: null, pending: true, deadline: now() + TIMEOUT_MS
+        documentId: null, pending: true, deadline: now() + TIMEOUT_MS, pinnedAttempted: true
       };
       await saveRuntime(next);
       await publish({ status: 'loading', lastAttemptAt: now() });
@@ -89,7 +93,9 @@
       try {
         if (tab) await api.tabs.reload(tab.id);
         else {
-          const created = await api.tabs.create({ url: URL_USAGE, active: false });
+          // Chromium cannot hide a live tab. Pin the dedicated reader so it
+          // occupies only an icon while keeping the official page's DOM alive.
+          const created = await api.tabs.create({ url: URL_USAGE, active: false, pinned: true });
           next.tabId = created.id;
           await saveRuntime(next);
         }
@@ -118,7 +124,8 @@
       const state = await runtime();
       if (sender.frameId !== 0 || sender.tab?.id !== state.tabId || sender.documentId !== state.documentId
         || message.captureId !== state.captureId || !isUsageURL(sender.url)) return { ok: false };
-      const items = sanitizeItems(message.items, now());
+      const capturedAt = now();
+      const items = sanitizeItems(message.items, capturedAt);
       if (!items.length) return { ok: true, waiting: true };
       const tab = await ownedTab(state);
       if (!tab || !isUsageURL(tab.url) || (tab.pendingUrl && !isUsageURL(tab.pendingUrl))) return { ok: false };
@@ -126,7 +133,7 @@
       await api.alarms.clear(DEADLINE_ALARM);
       // Replace the complete set per capture; do not merge windows from another
       // workspace/account/page into it. The UI keeps this as a separate source.
-      await publish({ status: 'ok', items, lastSuccessAt: now() });
+      await publish({ status: 'ok', items, lastSuccessAt: capturedAt });
       return { ok: true };
     }
     async function alarm(name) {
