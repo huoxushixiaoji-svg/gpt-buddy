@@ -74,7 +74,8 @@ button { font: inherit; }
 .detail-view { font-size: .94em; font-weight: 700; color: #605866; }
 .detail-line { margin: 0; overflow-wrap: anywhere; }
 .detail-value { font-size: 1.36em; font-weight: 800; }
-.pending-badge { display: inline-block; margin-left: 4px; font-size: 10px; color: #77606e; font-weight: 400; }
+.detail-reset, .detail-card { font-size: .82em; line-height: 1.12; }
+.detail-pending { font-size: .72em; color: #77606e; text-align: right; }
 .detail-muted { color: #605866; }
 .bubble-button {
   min-height: 24px;

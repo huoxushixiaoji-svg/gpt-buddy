@@ -21,7 +21,7 @@
     backgroundButton.setAttribute('aria-pressed', String(enabled));
     refreshButton.hidden = !enabled;
     const labels = {
-      off: '后台更新已关闭', loading: '正在读取用量页面…', ok: '已读取，每分钟尝试更新',
+      off: '后台更新已关闭', loading: '正在读取用量页面…', ok: '已读取，约每 30 秒尝试更新',
       'waiting-active': '你正在查看用量页，暂不刷新它', unrecognized: '未识别额度，请检查后台页是否已加载',
       'page-unavailable': '后台页不可用，请检查登录和页面状态', 'tab-closed': '后台页已关闭，更新已停止'
     };

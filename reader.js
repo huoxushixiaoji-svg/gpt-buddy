@@ -4,6 +4,7 @@
   const URL_USAGE = 'https://chatgpt.com/settings/usage?tab=overview';
   const POLL_ALARM = 'gpt-buddy-usage-poll';
   const DEADLINE_ALARM = 'gpt-buddy-usage-deadline';
+  const POLL_INTERVAL_MINUTES = 0.5;
   const TIMEOUT_MS = 45_000;
 
   function isUsageURL(value) {
@@ -107,7 +108,7 @@
     }
     async function setEnabled(value) {
       if (!value) return stop();
-      await api.alarms.create(POLL_ALARM, { periodInMinutes: 1 });
+      await api.alarms.create(POLL_ALARM, { periodInMinutes: POLL_INTERVAL_MINUTES });
       await poll();
     }
     async function captureFor(sender) {
@@ -154,7 +155,10 @@
     }
     async function restore() {
       if (!await enabled()) return;
-      if (!await api.alarms.get(POLL_ALARM)) await api.alarms.create(POLL_ALARM, { periodInMinutes: 1 });
+      const existingAlarm = await api.alarms.get(POLL_ALARM);
+      if (!existingAlarm || existingAlarm.periodInMinutes !== POLL_INTERVAL_MINUTES) {
+        await api.alarms.create(POLL_ALARM, { periodInMinutes: POLL_INTERVAL_MINUTES });
+      }
       const state = await runtime();
       if (state.pending && state.deadline <= now()) await alarm(DEADLINE_ALARM);
       if (state.pending && state.deadline > now()) await api.alarms.create(DEADLINE_ALARM, { when: state.deadline });

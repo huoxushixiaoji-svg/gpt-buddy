@@ -49,7 +49,7 @@ test('开启只创建一个非活动后台页，处理中不会重复创建或�
   await reader.setEnabled(true); await reader.poll();
   assert.deepEqual(f.effects, [['create', 1, false]]);
   assert.equal(f.tabs.get(1).pinned, true);
-  assert.equal(f.alarms.get(POLL_ALARM).periodInMinutes, 1);
+  assert.equal(f.alarms.get(POLL_ALARM).periodInMinutes, 0.5);
 });
 
 test('升级前已有的后台页在下一轮缩成固定标签', async () => {
@@ -62,6 +62,13 @@ test('升级前已有的后台页在下一轮缩成固定标签', async () => {
   f.advance(60_000); await reader.poll();
   assert.equal(f.tabs.get(1).pinned, true);
   assert.equal(f.effects.filter(([type]) => type === 'update').length, 1);
+});
+
+test('旧版一分钟闹钟在恢复时更新为三十秒', async () => {
+  const f = setup(); const reader = f.newReader();
+  f.alarms.set(POLL_ALARM, { periodInMinutes: 1 });
+  await reader.restore();
+  assert.equal(f.alarms.get(POLL_ALARM).periodInMinutes, 0.5);
 });
 
 test('休眠后实例从 session 恢复；旧文档和旧请求不能覆盖新结果', async () => {

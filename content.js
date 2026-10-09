@@ -107,7 +107,7 @@
   }
 
   function retryBackgroundCapture(attempt = 0) {
-    if (destroyed || backgroundCapture || attempt >= 7 || !settings.backgroundRefreshEnabled
+    if (destroyed || backgroundCapture || attempt >= 9 || !settings.backgroundRefreshEnabled
       || !document.hidden || !NS.parser.isUsageOverviewLocation(location)) return;
     global.clearTimeout(captureRetryTimer);
     captureRetryTimer = global.setTimeout(async () => {
@@ -118,7 +118,7 @@
         backgroundCapture = response.backgroundCapture;
         scan(true);
       } else retryBackgroundCapture(attempt + 1);
-    }, Math.min(500 * 2 ** attempt, 8000));
+    }, Math.min(250 * 2 ** attempt, 8000));
   }
 
   widget = NS.widget.createWidget({
@@ -137,12 +137,12 @@
     lastUrl = global.location.href;
     localItems = snapshots.leave();
     renderSnapshots();
-    scheduleScan(300);
+    scheduleScan(150);
   }
 
   observer = new MutationObserver((records) => {
     handleRouteMaybeChanged();
-    if (NS.parser.mutationTouchesUsageArea(records)) scheduleScan(350);
+    if (NS.parser.mutationTouchesUsageArea(records)) scheduleScan(120);
   });
   observer.observe(document.body || document.documentElement, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['role', 'aria-hidden', 'aria-modal', 'hidden'] });
 

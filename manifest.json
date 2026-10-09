@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "GPT 小伙伴",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "在 ChatGPT 页面内显示来源明确的用量快照挂件。",
   "permissions": ["storage", "alarms"],
   "host_permissions": ["https://chatgpt.com/*"],
@@ -28,7 +28,7 @@
     {
       "matches": ["https://chatgpt.com/*"],
       "js": ["parser.js", "state.js", "widget.js", "content.js"],
-      "run_at": "document_idle"
+      "run_at": "document_end"
     }
   ],
   "web_accessible_resources": [

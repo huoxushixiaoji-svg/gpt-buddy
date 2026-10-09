@@ -40,10 +40,11 @@
 
     const viewLine = createElement(doc, 'div', 'detail-line detail-view');
     const valueLine = createElement(doc, 'div', 'detail-line detail-value', '暂无准确剩余额度');
-    const resetLine = createElement(doc, 'div', 'detail-line');
-    const countdownLine = createElement(doc, 'div', 'detail-line');
-    const cardLine = createElement(doc, 'div', 'detail-line');
-    details.append(viewLine, valueLine, resetLine, countdownLine, cardLine);
+    const resetLine = createElement(doc, 'div', 'detail-line detail-reset');
+    const countdownLine = createElement(doc, 'div', 'detail-line detail-reset');
+    const cardLine = createElement(doc, 'div', 'detail-line detail-card');
+    const pendingLine = createElement(doc, 'div', 'detail-line detail-pending');
+    details.append(viewLine, valueLine, resetLine, countdownLine, cardLine, pendingLine);
     bubble.append(details);
 
     const characterHit = createElement(doc, 'button', 'character-hit');
@@ -134,26 +135,27 @@
         resetLine.textContent = '';
         countdownLine.textContent = '';
         cardLine.textContent = kind === 'weekly' ? '限额重置次数：暂无数据' : '';
+        pendingLine.textContent = '';
       } else {
         const pending = NS.state.freshnessFor(item, now) !== 'fresh' || item.observationStatus === 'history' || item.updatePending;
         const value = Number.isFinite(item.remainingPercent) ? `${item.remainingPercent}%`
           : Number.isFinite(item.remainingCount) ? `${item.remainingCount}${item.unit ? ` ${item.unit}` : ''}`
           : '暂无准确数据';
         valueLine.textContent = `${pending ? '上次余额' : '余额'}：${value}`;
-        if (pending) valueLine.append(createElement(doc, 'small', 'pending-badge', '待更新'));
         const validResetText = item.resetText ? NS.parser.parseResetText(`重置：${item.resetText}`) : '';
-        const remaining = NS.state.resetTimeRemaining(item, now);
         if (item.resetTimeSource === 'relative') {
-          resetLine.textContent = pending ? '重置：待更新' : remaining ? '' : validResetText ? `重置：${validResetText}` : '';
-          countdownLine.textContent = remaining ? `约还剩：${remaining}` : '';
+          resetLine.textContent = pending ? '' : validResetText;
+          countdownLine.textContent = '';
         } else {
           resetLine.textContent = validResetText
             ? `重置：${Number.isFinite(item.resetAt) ? NS.state.formatResetMoment(item.resetAt) : validResetText}` : '';
+          const remaining = NS.state.resetTimeRemaining(item, now);
           countdownLine.textContent = remaining ? `还剩：${remaining}` : '';
         }
         cardLine.textContent = kind === 'weekly'
           ? `限额重置次数：${Number.isSafeInteger(item.resetCardCount) && item.resetCardCount >= 0 ? `${item.resetCardCount} 次` : '暂无数据'}`
           : '';
+        pendingLine.textContent = pending ? '待更新' : '';
       }
       resetLine.title = item?.resetText || resetLine.textContent;
       countdownLine.title = item?.resetText || countdownLine.textContent;
