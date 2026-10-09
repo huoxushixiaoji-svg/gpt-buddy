@@ -2,6 +2,9 @@
   "use strict";
 
   const NS = (global.GPTBuddy = global.GPTBuddy || {});
+  const EDGE_GAP = 8;
+  const SNAP_DISTANCE = 72;
+  const EDGES = new Set(['left', 'right', 'top', 'bottom']);
 
   function createElement(documentRef, tag, className, text) {
     const element = documentRef.createElement(tag);
@@ -101,23 +104,54 @@
       return matching[0] || null;
     }
 
-    function clampPosition(position) {
+    function bounds() {
       const rect = host.getBoundingClientRect();
-      const width = rect.width || 420 * Number(settings.scale || 1);
-      const height = rect.height || 420 * Number(settings.scale || 1);
-      const maxX = Math.max(8, global.innerWidth - Math.min(width, global.innerWidth - 8));
-      const maxY = Math.max(8, global.innerHeight - Math.min(height, global.innerHeight - 8));
+      const effectiveScale = Number(host.style.getPropertyValue('--buddy-scale')) || Number(settings.scale || 1);
+      const width = rect.width || 420 * effectiveScale;
+      const height = rect.height || 400 * effectiveScale;
       return {
-        x: Math.min(Math.max(8, Number(position && position.x) || maxX - 16), maxX),
-        y: Math.min(Math.max(8, Number(position && position.y) || maxY - 80), maxY)
+        width, height,
+        maxX: Math.max(EDGE_GAP, global.innerWidth - width - EDGE_GAP),
+        maxY: Math.max(EDGE_GAP, global.innerHeight - height - EDGE_GAP)
       };
     }
 
-    function applyPosition(position, persist) {
+    function clampPosition(position) {
+      const { maxX, maxY } = bounds();
+      const x = Number(position?.x);
+      const y = Number(position?.y);
+      return {
+        x: Math.min(Math.max(EDGE_GAP, Number.isFinite(x) ? x : maxX - 16), maxX),
+        y: Math.min(Math.max(EDGE_GAP, Number.isFinite(y) ? y : maxY - 80), maxY)
+      };
+    }
+
+    function snapPosition(position) {
       const next = clampPosition(position);
+      const { maxX, maxY } = bounds();
+      const candidates = [
+        ['left', next.x - EDGE_GAP], ['right', maxX - next.x],
+        ['top', next.y - EDGE_GAP], ['bottom', maxY - next.y]
+      ];
+      candidates.sort((a, b) => a[1] - b[1]);
+      return candidates[0][1] <= SNAP_DISTANCE ? { ...next, edge: candidates[0][0] } : next;
+    }
+
+    function applyPosition(position, persist, preserveEdge = false) {
+      const next = clampPosition(position);
+      const edge = preserveEdge && EDGES.has(position?.edge) ? position.edge : null;
+      const { width, maxX, maxY } = bounds();
+      if (edge === 'left') next.x = EDGE_GAP;
+      if (edge === 'right') next.x = maxX;
+      if (edge === 'top') next.y = EDGE_GAP;
+      if (edge === 'bottom') next.y = maxY;
+      if (edge) next.edge = edge;
       settings.position = next;
       host.style.left = `${Math.round(next.x)}px`;
       host.style.top = `${Math.round(next.y)}px`;
+      frame.dataset.edge = edge || 'free';
+      frame.dataset.facing = edge === 'left' || (edge !== 'right' && next.x + width / 2 < global.innerWidth / 2)
+        ? 'left' : 'right';
       if (persist) {
         global.clearTimeout(persistTimer);
         persistTimer = global.setTimeout(() => options.onSettingsChange({ position: next }), 120);
@@ -176,10 +210,15 @@
 
     function renderSettings() {
       host.hidden = settings.visible === false;
-      host.style.setProperty('--buddy-scale', String(Math.min(1.35, Math.max(0.7, Number(settings.scale) || 1))));
+      const preferredScale = Math.min(1.35, Math.max(0.7, Number(settings.scale) || 1));
+      const fittingScale = Math.max(0.1, Math.min((global.innerWidth - 2 * EDGE_GAP) / 420,
+        (global.innerHeight - 2 * EDGE_GAP) / 400));
+      host.style.setProperty('--buddy-scale', String(Math.min(preferredScale, fittingScale)));
+      host.classList.toggle('motion-off', settings.animationEnabled === false);
       frame.classList.toggle('animations-on', settings.animationEnabled !== false);
       animation.textContent = settings.animationEnabled === false ? '开启动画' : '关闭动画';
-      applyPosition(settings.position, false);
+      const position = settings.position || { edge: 'right' };
+      applyPosition(position.edge ? position : snapPosition(position), false, true);
     }
 
     function setItems(nextItems) {
@@ -264,6 +303,7 @@
       const position = clampPosition(settings.position);
       drag = { id: event.pointerId, startX: event.clientX, startY: event.clientY, x: position.x, y: position.y };
       moved = false;
+      host.classList.add('is-dragging');
       characterHit.setPointerCapture(event.pointerId);
     });
     characterHit.addEventListener('pointermove', (event) => {
@@ -277,12 +317,17 @@
       if (!drag || drag.id !== event.pointerId) return;
       characterHit.releasePointerCapture(event.pointerId);
       drag = null;
-      if (moved) applyPosition(settings.position, true);
+      host.classList.remove('is-dragging');
+      if (moved) applyPosition(snapPosition(settings.position), true, true);
       else {
         switchQuota();
       }
     });
-    characterHit.addEventListener('pointercancel', () => { drag = null; });
+    characterHit.addEventListener('pointercancel', () => {
+      if (drag && moved) applyPosition(snapPosition(settings.position), true, true);
+      drag = null;
+      host.classList.remove('is-dragging');
+    });
     characterHit.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault(); switchQuota();
@@ -296,7 +341,8 @@
     }
 
     function onResize() {
-      applyPosition(settings.position, true);
+      renderSettings();
+      applyPosition(settings.position, true, true);
     }
     global.addEventListener('resize', onResize, { passive: true });
     const refreshTimer = global.setInterval(renderDetails, 60 * 1000);

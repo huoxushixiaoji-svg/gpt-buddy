@@ -16,12 +16,17 @@
   <script src="../widget.js"></script>
   <script>
     fetch('../styles.css').then((response) => response.text()).then((styles) => {
+      window.testSettingsChanges = [];
+      const savedPosition = JSON.parse(sessionStorage.getItem('buddy-test-position') || 'null');
       const widget = GPTBuddy.widget.createWidget({
         shadowMode: 'open',
         styles,
         imageUrl: '../assets/character-web.png',
-        settings: { visible: true, scale: 1, animationEnabled: false, position: { x: 535, y: 210 } },
-        onRescan() {}, onSettingsChange() {}, onClear() {}
+        settings: { visible: true, scale: 1, animationEnabled: false, position: savedPosition || { x: 535, y: 210 } },
+        onRescan() {}, onSettingsChange(patch) {
+          testSettingsChanges.push(patch);
+          if (patch.position) sessionStorage.setItem('buddy-test-position', JSON.stringify(patch.position));
+        }, onClear() {}
       });
       const weeklyResetAt = Date.now() + 90 * 60 * 1000;
       widget.setItems([

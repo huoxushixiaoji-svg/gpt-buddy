@@ -226,7 +226,7 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
           return { ok: true, settings };
         } },
         storage: { onChanged: { addListener(cb) { listeners.add(cb); } } },
-        tabs: { query: (q, cb) => cb([{ id: 99 }]), sendMessage: (id, m, cb) => cb({ ok: true, version: '0.4.5' }) }
+        tabs: { query: (q, cb) => cb([{ id: 99 }]), sendMessage: (id, m, cb) => cb({ ok: true, version: '0.4.6' }) }
       };
     });
     await popup.goto(base + '/popup.html');
@@ -287,7 +287,7 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
     assert.notEqual(await ui.locator('#gpt-buddy-host .buddy-visual').evaluate((el) => getComputedStyle(el).transform), 'none');
     await ui.waitForTimeout(420);
     assert.equal(await ui.locator('#gpt-buddy-host .buddy-visual').evaluate((el) => getComputedStyle(el).transform), 'none');
-    await ui.screenshot({ path: '/tmp/gpt-buddy-v0.4.5-weekly.png' });
+    await ui.screenshot({ path: '/tmp/gpt-buddy-v0.4.6-weekly.png' });
     const beforeDrag = await ui.locator('#gpt-buddy-host .buddy-bubble').textContent();
     const hitBox = await hit.boundingBox();
     await ui.mouse.move(hitBox.x + hitBox.width / 2, hitBox.y + hitBox.height / 2);
@@ -300,16 +300,89 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
     assert.match(await ui.locator('#gpt-buddy-host .buddy-bubble').textContent(), /5 小时额度.*68%/);
     bubble = await ui.locator('#gpt-buddy-host .buddy-bubble').textContent();
     assert.equal(/采集|来源|新近快照|重新读取/.test(bubble), false);
-    await ui.screenshot({ path: '/tmp/gpt-buddy-v0.4.5-ui.png' });
+    await ui.screenshot({ path: '/tmp/gpt-buddy-v0.4.6-ui.png' });
     await hit.click({ button: 'right' });
     assert.equal(await ui.locator('#gpt-buddy-host .buddy-menu').isVisible(), true);
     await ui.keyboard.press('Escape');
+    await ui.evaluate(() => testWidget.updateSettings({ animationEnabled: false }));
+    const dragTo = async (x, y) => {
+      const hostBox = await ui.locator('#gpt-buddy-host').boundingBox();
+      const hitArea = await hit.boundingBox();
+      const startX = hitArea.x + hitArea.width / 2;
+      const startY = hitArea.y + hitArea.height / 2;
+      await ui.mouse.move(startX, startY);
+      await ui.mouse.down();
+      await ui.mouse.move(startX + x - hostBox.x, startY + y - hostBox.y, { steps: 12 });
+      await ui.mouse.up();
+      await ui.waitForTimeout(220);
+    };
+    await dragTo(8, 180);
+    assert.equal(await ui.locator('#gpt-buddy-host .buddy-frame').getAttribute('data-edge'), 'left');
+    assert.equal(await ui.locator('#gpt-buddy-host .buddy-frame').getAttribute('data-facing'), 'left');
+    const mirrored = await ui.locator('#gpt-buddy-host').evaluate((hostElement) => {
+      const shadow = hostElement.shadowRoot;
+      const bubbleRect = shadow.querySelector('.buddy-bubble').getBoundingClientRect();
+      const hostRect = hostElement.getBoundingClientRect();
+      return {
+        hostLeft: hostRect.left,
+        bubbleRightSide: (bubbleRect.left + bubbleRect.right) / 2 > (hostRect.left + hostRect.right) / 2,
+        imageTransform: getComputedStyle(shadow.querySelector('.buddy-character')).transform,
+        textTransform: getComputedStyle(shadow.querySelector('.buddy-bubble')).transform,
+        menuLeftSide: shadow.querySelector('.menu-trigger').getBoundingClientRect().left < hostRect.left + hostRect.width / 2
+      };
+    });
+    assert.ok(Math.abs(mirrored.hostLeft - 8) <= 1, JSON.stringify(mirrored));
+    assert.equal(mirrored.bubbleRightSide, true);
+    assert.match(mirrored.imageTransform, /^matrix\(-1,/);
+    assert.equal(mirrored.textTransform, 'none');
+    assert.equal(mirrored.menuLeftSide, true);
+    assert.match(await ui.locator('#gpt-buddy-host .buddy-bubble').textContent(), /5 小时额度.*68%/);
+    await ui.evaluate(() => testWidget.updateSettings({ animationEnabled: true }));
+    await ui.waitForTimeout(60);
+    assert.match(await ui.locator('#gpt-buddy-host .buddy-character').evaluate((imageElement) => getComputedStyle(imageElement).transform), /^matrix\(-/);
+    await ui.evaluate(() => testWidget.updateSettings({ animationEnabled: false }));
+    await ui.waitForTimeout(140);
+    assert.equal(await ui.evaluate(() => testSettingsChanges.findLast((change) => change.position)?.position.edge), 'left');
+    await ui.screenshot({ path: '/tmp/gpt-buddy-v0.4.6-left.png' });
+    await hit.click({ button: 'right' });
+    assert.equal(await ui.locator('#gpt-buddy-host .buddy-menu').isVisible(), true);
+    await ui.keyboard.press('Escape');
+    await dragTo(572, 180);
+    assert.equal(await ui.locator('#gpt-buddy-host .buddy-frame').getAttribute('data-edge'), 'right');
+    assert.equal(await ui.locator('#gpt-buddy-host .buddy-frame').getAttribute('data-facing'), 'right');
+    await dragTo(70, 8);
+    assert.equal(await ui.locator('#gpt-buddy-host .buddy-frame').getAttribute('data-edge'), 'top');
+    assert.equal(await ui.locator('#gpt-buddy-host .buddy-frame').getAttribute('data-facing'), 'left');
+    await dragTo(350, 292);
+    assert.equal(await ui.locator('#gpt-buddy-host .buddy-frame').getAttribute('data-edge'), 'bottom');
+    assert.equal(await ui.locator('#gpt-buddy-host .buddy-frame').getAttribute('data-facing'), 'right');
     await ui.setViewportSize({ width: 640, height: 520 });
     await ui.waitForFunction(() => { const rect = document.querySelector('#gpt-buddy-host').getBoundingClientRect(); return rect.right <= innerWidth && rect.bottom <= innerHeight; });
     const box = await ui.locator('#gpt-buddy-host').boundingBox();
     assert.ok(box.x >= 0 && box.y >= 0 && box.x + box.width <= 640 && box.y + box.height <= 520);
+    assert.equal(await ui.locator('#gpt-buddy-host .buddy-frame').getAttribute('data-edge'), 'bottom');
+    assert.ok(Math.abs(box.y + box.height - 512) <= 1);
+    await ui.evaluate(() => testWidget.updateSettings({ scale: 1.2 }));
+    await ui.waitForTimeout(220);
+    const scaledBox = await ui.locator('#gpt-buddy-host').boundingBox();
+    assert.ok(Math.abs(scaledBox.y + scaledBox.height - 512) <= 1);
+    await ui.setViewportSize({ width: 360, height: 300 });
+    await ui.waitForTimeout(220);
+    const smallBox = await ui.locator('#gpt-buddy-host').boundingBox();
+    assert.ok(smallBox.x >= 0 && smallBox.y >= 0 && smallBox.x + smallBox.width <= 360 && smallBox.y + smallBox.height <= 300);
+    assert.equal(await ui.locator('#gpt-buddy-host .buddy-frame').getAttribute('data-edge'), 'bottom');
+    await ui.waitForTimeout(140);
+    await ui.reload();
+    await ui.waitForSelector('html[data-ready=true]');
+    assert.equal(await ui.locator('#gpt-buddy-host .buddy-frame').getAttribute('data-edge'), 'bottom');
+    const restoredBox = await ui.locator('#gpt-buddy-host').boundingBox();
+    assert.ok(Math.abs(restoredBox.y + restoredBox.height - 292) <= 1);
     await ui.evaluate(() => testWidget.updateSettings({ visible: false }));
     assert.equal(await ui.locator('#gpt-buddy-host').isVisible(), false);
+    await ui.evaluate(() => testWidget.updateSettings({ visible: true }));
+    assert.equal(await ui.locator('#gpt-buddy-host .buddy-frame').getAttribute('data-edge'), 'bottom');
+    const shownBox = await ui.locator('#gpt-buddy-host').boundingBox();
+    assert.ok(Math.abs(shownBox.y + shownBox.height - 292) <= 1);
   } finally {
     if (browser) await browser.close();
     await new Promise((resolve) => server.close(resolve));
