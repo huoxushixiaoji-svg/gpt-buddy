@@ -54,7 +54,8 @@
   if (destroyed) return;
   settings = initial?.settings || {};
   backgroundUsage = initial?.backgroundUsage || backgroundUsage;
-  const backgroundCapture = initial?.backgroundCapture;
+  let backgroundCapture = initial?.backgroundCapture;
+  let captureRetryTimer = null;
 
   function updateSettings(patch) {
     send({ type: 'UPDATE_SETTINGS', patch });
@@ -95,9 +96,29 @@
     }
   }
 
+  function refreshFromCharacterClick() {
+    scan(true);
+    if (settings.backgroundRefreshEnabled === true) send({ type: 'REFRESH_BACKGROUND' });
+  }
+
   function scheduleScan(delay) {
     global.clearTimeout(scanTimer);
     scanTimer = global.setTimeout(scan, Number(delay) || 250);
+  }
+
+  function retryBackgroundCapture(attempt = 0) {
+    if (destroyed || backgroundCapture || attempt >= 7 || !settings.backgroundRefreshEnabled
+      || !document.hidden || !NS.parser.isUsageOverviewLocation(location)) return;
+    global.clearTimeout(captureRetryTimer);
+    captureRetryTimer = global.setTimeout(async () => {
+      if (destroyed || backgroundCapture) return;
+      const response = await send({ type: 'GET_STATE', contextKey });
+      if (destroyed) return;
+      if (response?.backgroundCapture) {
+        backgroundCapture = response.backgroundCapture;
+        scan(true);
+      } else retryBackgroundCapture(attempt + 1);
+    }, Math.min(500 * 2 ** attempt, 8000));
   }
 
   widget = NS.widget.createWidget({
@@ -105,9 +126,11 @@
     imageUrl: chrome.runtime.getURL('assets/character-web.png'),
     settings: initial && initial.settings,
     onRescan: () => scan(true),
+    onCharacterClick: refreshFromCharacterClick,
     onSettingsChange: updateSettings,
     onClear: clearSnapshots
   });
+  retryBackgroundCapture();
 
   function handleRouteMaybeChanged() {
     if (global.location.href === lastUrl) return;
@@ -171,6 +194,7 @@
     if (destroyed) return;
     destroyed = true;
     global.clearTimeout(scanTimer);
+    global.clearTimeout(captureRetryTimer);
     global.clearInterval(routeTimer);
     observer && observer.disconnect();
     chrome.storage.onChanged.removeListener(onStorageChanged);

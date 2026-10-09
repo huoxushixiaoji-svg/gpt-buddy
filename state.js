@@ -35,6 +35,31 @@
     }).format(new Date(Number(timestamp)));
   }
 
+  function resetTimeRemaining(item, now) {
+    if (!item || !Number.isFinite(item.resetAt) || item.resetAt <= now
+      || freshnessFor(item, now) !== 'fresh' || item.observationStatus === 'history' || item.updatePending) return '';
+    const minutes = Math.ceil((item.resetAt - now) / 60000);
+    if (minutes < 60) return `${minutes}分钟`;
+    if (minutes < 1440) {
+      const hours = Math.floor(minutes / 60);
+      const rest = minutes % 60;
+      return `${hours}小时${rest ? `${rest}分` : ''}`;
+    }
+    const days = Math.floor(minutes / 1440);
+    const hours = Math.floor((minutes % 1440) / 60);
+    const remainder = minutes % 60;
+    return `${remainder ? '约' : ''}${days}天${hours ? `${hours}小时` : ''}`;
+  }
+
+  function formatResetMoment(timestamp) {
+    if (!Number.isFinite(timestamp)) return '';
+    const date = new Date(timestamp);
+    if (!Number.isFinite(date.getTime())) return '';
+    return new Intl.DateTimeFormat('zh-CN', {
+      month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit'
+    }).format(date);
+  }
+
   function messageFor(item, now) {
     if (!item) return '打开用量面板，让我看看。';
     const freshness = freshnessFor(item, now);
@@ -114,6 +139,8 @@
     withFreshness,
     visualState,
     formatTime,
+    resetTimeRemaining,
+    formatResetMoment,
     messageFor,
     safeCurrentValue,
     historicalValue,

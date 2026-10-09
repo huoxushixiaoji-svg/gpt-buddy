@@ -41,13 +41,14 @@
     const viewLine = createElement(doc, 'div', 'detail-line detail-view');
     const valueLine = createElement(doc, 'div', 'detail-line detail-value', '暂无准确剩余额度');
     const resetLine = createElement(doc, 'div', 'detail-line');
+    const countdownLine = createElement(doc, 'div', 'detail-line');
     const cardLine = createElement(doc, 'div', 'detail-line');
-    details.append(viewLine, valueLine, resetLine, cardLine);
+    details.append(viewLine, valueLine, resetLine, countdownLine, cardLine);
     bubble.append(details);
 
     const characterHit = createElement(doc, 'button', 'character-hit');
     characterHit.type = 'button';
-    characterHit.setAttribute('aria-label', '切换 5 小时与周额度，角色弹一下；右键打开菜单');
+    characterHit.setAttribute('aria-label', '切换 5 小时与周额度并尝试刷新；右键打开菜单');
 
     const menuButton = createElement(doc, 'button', 'menu-trigger', '⋯');
     menuButton.type = 'button';
@@ -131,6 +132,7 @@
       if (!item) {
         valueLine.textContent = '余额：暂无准确数据';
         resetLine.textContent = '';
+        countdownLine.textContent = '';
         cardLine.textContent = kind === 'weekly' ? '额度充值卡：暂无数据' : '';
       } else {
         const pending = NS.state.freshnessFor(item, now) !== 'fresh' || item.observationStatus === 'history' || item.updatePending;
@@ -140,12 +142,15 @@
         valueLine.textContent = `${pending ? '上次余额' : '余额'}：${value}`;
         if (pending) valueLine.append(createElement(doc, 'small', 'pending-badge', '待更新'));
         const validResetText = item.resetText ? NS.parser.parseResetText(`重置：${item.resetText}`) : '';
-        resetLine.textContent = validResetText ? `重置：${validResetText}` : '';
+        resetLine.textContent = validResetText
+          ? `重置：${Number.isFinite(item.resetAt) ? NS.state.formatResetMoment(item.resetAt) : validResetText}` : '';
+        const remaining = NS.state.resetTimeRemaining(item, now);
+        countdownLine.textContent = remaining ? `还剩：${remaining}` : '';
         cardLine.textContent = kind === 'weekly'
           ? `额度充值卡：${Number.isSafeInteger(item.resetCardCount) && item.resetCardCount >= 0 ? `${item.resetCardCount} 次` : '暂无数据'}`
           : '';
       }
-      resetLine.title = resetLine.textContent;
+      resetLine.title = item?.resetText || resetLine.textContent;
     }
 
     function renderSettings() {
@@ -168,6 +173,7 @@
       renderDetails();
       options.onSettingsChange({ selectedQuotaKind: settings.selectedQuotaKind });
       playSquash();
+      if (options.onCharacterClick) options.onCharacterClick();
     }
 
     function playSquash() {

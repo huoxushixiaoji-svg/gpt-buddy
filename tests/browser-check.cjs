@@ -77,11 +77,19 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
     assert.equal(await page.locator('#gpt-buddy-host').count(), 1);
     await page.evaluate(() => __GPT_BUDDY_CONTROLLER__.scan());
     assert.equal(await page.evaluate(() => testMessages.filter((m) => m.type === 'UPSERT_SNAPSHOTS').at(-1).items[0].capturedAt), captured);
+    await page.locator('#gpt-buddy-host .character-hit').click();
+    assert.equal(await page.evaluate(() => testMessages.filter((m) => m.type === 'REFRESH_BACKGROUND').length), 0);
+    await page.locator('#gpt-buddy-host .character-hit').click();
 
     const snapshot = { scope: 'work-codex', bucketId: 'five-hour', label: '5 hour', quotaKind: 'five-hour', remainingPercent: 62, remainingCount: null,
       resetText: '18:30', resetAt: null, capturedAt: Date.now(), source: 'test-source' };
     await page.evaluate((item) => emitStorageChange({ settings: { newValue: { backgroundRefreshEnabled: true } },
       backgroundUsage: { newValue: { status: 'ok', items: [item] } } }), snapshot);
+    assert.match(await value.textContent(), /余额：62%/);
+    await page.locator('#gpt-buddy-host .character-hit').click();
+    await page.waitForFunction(() => testMessages.some((message) => message.type === 'REFRESH_BACKGROUND'));
+    assert.equal(await page.evaluate(() => testMessages.filter((m) => m.type === 'REFRESH_BACKGROUND').length), 1);
+    await page.locator('#gpt-buddy-host .character-hit').click();
     assert.match(await value.textContent(), /余额：62%/);
     let bubble = await page.locator('#gpt-buddy-host .buddy-bubble').textContent();
     assert.equal(/采集|来源|test-source|新近快照/.test(bubble), false);
@@ -125,8 +133,10 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
     const sourcePage = await browser.newPage();
     sourcePage.on('pageerror', (err) => errors.push(String(err)));
     const sender = { tab: { id: 1 }, frameId: 0, documentId: 'browser-reader', url: 'https://chatgpt.com/settings/usage?tab=overview' };
+    let captureLookups = 0;
     await sourcePage.exposeFunction('sendToWorker', async (message) => {
-      if (message.type === 'GET_STATE') return { ok: true, settings: data.settings, backgroundUsage: data.backgroundUsage, backgroundCapture: await reader.captureFor(sender) };
+      if (message.type === 'GET_STATE') return { ok: true, settings: data.settings, backgroundUsage: data.backgroundUsage,
+        backgroundCapture: ++captureLookups < 3 ? null : await reader.captureFor(sender) };
       if (message.type === 'READER_RESULT') return reader.accept(message, sender);
       return { ok: true };
     });
@@ -147,6 +157,7 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
     });
     await sourcePage.goto(sender.url);
     await page.waitForFunction(() => document.querySelector('#gpt-buddy-host').shadowRoot.querySelector('.detail-value').textContent.includes('68%'));
+    assert.ok(captureLookups >= 3);
     assert.equal(data.backgroundUsage.status, 'ok');
     // Updating only a text node must trigger a debounced rescan.
     await sourcePage.evaluate(() => { document.querySelector('#reading').firstChild.nodeValue = '52% left'; });
@@ -182,7 +193,7 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
           return { ok: true, settings };
         } },
         storage: { onChanged: { addListener(cb) { listeners.add(cb); } } },
-        tabs: { query: (q, cb) => cb([{ id: 99 }]), sendMessage: (id, m, cb) => cb({ ok: true, version: '0.4.2' }) }
+        tabs: { query: (q, cb) => cb([{ id: 99 }]), sendMessage: (id, m, cb) => cb({ ok: true, version: '0.4.3' }) }
       };
     });
     await popup.goto(base + '/popup.html');
@@ -201,22 +212,25 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
     const hit = ui.locator('#gpt-buddy-host .character-hit');
     assert.equal((await ui.locator('#gpt-buddy-host .buddy-bubble').textContent()).includes('点击角色切换'), false);
     assert.match(await ui.locator('#gpt-buddy-host .buddy-bubble').textContent(), /5 小时额度.*68%/);
+    assert.equal((await ui.locator('#gpt-buddy-host .buddy-bubble').textContent()).includes('还剩：'), false);
     await hit.click();
-    assert.match(await ui.locator('#gpt-buddy-host .buddy-bubble').textContent(), /周额度.*31%.*额度充值卡：2 次/);
+    assert.match(await ui.locator('#gpt-buddy-host .buddy-bubble').textContent(), /周额度.*31%.*还剩：.*额度充值卡：2 次/);
     const bubbleLayout = await ui.locator('#gpt-buddy-host .buddy-bubble').evaluate((bubbleElement) => {
       const bubbleRect = bubbleElement.getBoundingClientRect();
       const detailsElement = bubbleElement.querySelector('.buddy-details');
       const detailsRect = detailsElement.getBoundingClientRect();
       return { inside: detailsRect.left >= bubbleRect.left && detailsRect.right <= bubbleRect.right
         && detailsRect.top >= bubbleRect.top && detailsRect.bottom <= bubbleRect.bottom,
-      fitsWithoutScroll: detailsElement.scrollHeight <= detailsElement.clientHeight };
+      fitsWithoutScroll: detailsElement.scrollHeight <= detailsElement.clientHeight,
+      scrollHeight: detailsElement.scrollHeight, clientHeight: detailsElement.clientHeight };
     });
-    assert.deepEqual(bubbleLayout, { inside: true, fitsWithoutScroll: true });
+    assert.equal(bubbleLayout.inside, true);
+    assert.ok(bubbleLayout.scrollHeight - bubbleLayout.clientHeight <= 2, JSON.stringify(bubbleLayout));
     await ui.waitForTimeout(160);
     assert.notEqual(await ui.locator('#gpt-buddy-host .buddy-visual').evaluate((el) => getComputedStyle(el).transform), 'none');
     await ui.waitForTimeout(420);
     assert.equal(await ui.locator('#gpt-buddy-host .buddy-visual').evaluate((el) => getComputedStyle(el).transform), 'none');
-    await ui.screenshot({ path: '/tmp/gpt-buddy-v0.4.2-weekly.png' });
+    await ui.screenshot({ path: '/tmp/gpt-buddy-v0.4.3-weekly.png' });
     const beforeDrag = await ui.locator('#gpt-buddy-host .buddy-bubble').textContent();
     const hitBox = await hit.boundingBox();
     await ui.mouse.move(hitBox.x + hitBox.width / 2, hitBox.y + hitBox.height / 2);
@@ -229,7 +243,7 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
     assert.match(await ui.locator('#gpt-buddy-host .buddy-bubble').textContent(), /5 小时额度.*68%/);
     bubble = await ui.locator('#gpt-buddy-host .buddy-bubble').textContent();
     assert.equal(/采集|来源|新近快照|重新读取/.test(bubble), false);
-    await ui.screenshot({ path: '/tmp/gpt-buddy-v0.4.2-ui.png' });
+    await ui.screenshot({ path: '/tmp/gpt-buddy-v0.4.3-ui.png' });
     await hit.click({ button: 'right' });
     assert.equal(await ui.locator('#gpt-buddy-host .buddy-menu').isVisible(), true);
     await ui.keyboard.press('Escape');

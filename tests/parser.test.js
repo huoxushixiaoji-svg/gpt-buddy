@@ -77,6 +77,18 @@ test('明确零张卡被保留；带时区的重置时间能产生时间戳', ()
   assert.equal(item.resetAt, Date.parse('2026-10-09T18:30:00Z'));
 });
 
+test('中文完整日期加 GMT 时区可算恢复时间；缺少年份时保留原文', () => {
+  const now = Date.parse('2026-10-08T00:00:00Z');
+  const [dated] = parser.parseUsageBlocks([{
+    routeVerified: true, label: '5 小时额度', text: '剩余 35% 重置：2026年10月9日 GMT+8 05:25'
+  }], { now, onlyTrackedQuotas: true });
+  assert.equal(dated.resetAt, Date.parse('2026-10-08T21:25:00Z'));
+  const [withoutYear] = parser.parseUsageBlocks([{
+    routeVerified: true, label: '5 小时额度', text: '剩余 35% 重置：10月9日 GMT+8 05:25'
+  }], { now, onlyTrackedQuotas: true });
+  assert.equal(withoutYear.resetAt, null);
+});
+
 test('overview 适配只在指定 ChatGPT 用量路由启用', () => {
   assert.equal(parser.isUsageOverviewLocation({ hostname: 'chatgpt.com', pathname: '/settings/usage', search: '?tab=overview' }), true);
   assert.equal(parser.isUsageOverviewLocation({ hostname: 'chatgpt.com', pathname: '/c/example', search: '' }), false);

@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 require('../parser.js');
 const state = require('../state.js');
-const { mergeSnapshotMaps } = require('../background.js');
+const { mergeSnapshotMaps, settingsForAutomaticReader } = require('../background.js');
 
 function item(patch) {
   return {
@@ -27,6 +27,27 @@ test('超过已知恢复时间后不会自动变为 100%', () => {
   assert.equal(state.freshnessFor(snapshot, 5_001), 'past-reset');
   assert.equal(state.safeCurrentValue(snapshot, 5_001).percent, null);
   assert.match(state.messageFor(snapshot, 5_001), /重新查看/);
+});
+
+test('只对新近且确定的恢复时间显示倒计时', () => {
+  const now = 1_000_000;
+  const snapshot = item({ capturedAt: now, resetAt: now + 2 * 3600000 + 23 * 60000 });
+  assert.equal(state.resetTimeRemaining(snapshot, now), '2小时23分');
+  assert.equal(state.resetTimeRemaining({ ...snapshot, resetAt: null }, now), '');
+  assert.equal(state.resetTimeRemaining({ ...snapshot, observationStatus: 'history' }, now), '');
+  assert.equal(state.resetTimeRemaining({ ...snapshot, updatePending: true }, now), '');
+  assert.equal(state.resetTimeRemaining(snapshot, now + state.DEFAULT_MAX_AGE_MS + 1), '');
+  assert.equal(state.resetTimeRemaining(snapshot, snapshot.resetAt), '');
+});
+
+test('升级时自动启用后台读取，之后尊重用户关闭选择', () => {
+  assert.equal(settingsForAutomaticReader(null).backgroundRefreshEnabled, true);
+  const migrated = settingsForAutomaticReader({ visible: false, backgroundRefreshEnabled: false });
+  assert.equal(migrated.visible, false);
+  assert.equal(migrated.backgroundRefreshEnabled, true);
+  assert.equal(migrated.backgroundRefreshConfigured, true);
+  const disabled = settingsForAutomaticReader({ ...migrated, backgroundRefreshEnabled: false });
+  assert.equal(disabled.backgroundRefreshEnabled, false);
 });
 
 test('未知数据采用中性状态', () => {

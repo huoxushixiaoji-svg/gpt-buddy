@@ -66,12 +66,24 @@
   function parseResetAt(rawText, now) {
     if (!rawText) return null;
     const text = normalizeText(rawText);
-    // Only accept an absolute date/time with a timezone offset or Z. Locale-only
-    // times remain resetText because guessing the date or timezone is unsafe.
+    // A countdown needs a complete date and an explicit timezone. A local time
+    // such as "18:30" remains plain text because its date is ambiguous.
     const absolute = text.match(/\b(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:?\d{2}))\b/);
-    if (!absolute) return null;
-    const parsed = Date.parse(absolute[1]);
-    return Number.isFinite(parsed) && parsed > Number(now || Date.now()) - 366 * 86400000 ? parsed : null;
+    if (absolute) {
+      const parsed = Date.parse(absolute[1]);
+      return Number.isFinite(parsed) && parsed > Number(now || Date.now()) - 366 * 86400000 ? parsed : null;
+    }
+    const gmt = text.match(/(\d{4})[年/-](\d{1,2})[月/-](\d{1,2})(?:日)?\s*(?:GMT|UTC)\s*([+-])(\d{1,2})(?::?(\d{2}))?\s*(\d{1,2}):(\d{2})/i);
+    if (!gmt) return null;
+    const [, year, month, day, sign, offsetHour, offsetMinute = '0', hour, minute] = gmt;
+    const offset = (sign === '+' ? 1 : -1) * (Number(offsetHour) * 60 + Number(offsetMinute));
+    if (Number(offsetHour) > 14 || Number(offsetMinute) > 59 || Number(hour) > 23 || Number(minute) > 59) return null;
+    const local = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute));
+    const check = new Date(local);
+    if (check.getUTCFullYear() !== Number(year) || check.getUTCMonth() !== Number(month) - 1
+      || check.getUTCDate() !== Number(day)) return null;
+    const parsed = local - offset * 60000;
+    return parsed > Number(now || Date.now()) - 366 * 86400000 ? parsed : null;
   }
 
   function quotaKindForLabel(label) {

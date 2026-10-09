@@ -4,7 +4,8 @@ const DEFAULT_SETTINGS = Object.freeze({
   visible: true,
   scale: 1,
   animationEnabled: true,
-  backgroundRefreshEnabled: false,
+  backgroundRefreshEnabled: true,
+  backgroundRefreshConfigured: true,
   selectedQuotaKind: 'five-hour',
   position: null
 });
@@ -24,6 +25,11 @@ function mergeSnapshotMaps(existing, incoming) {
   return merged;
 }
 
+function settingsForAutomaticReader(existing) {
+  if (existing?.backgroundRefreshConfigured === true) return { ...DEFAULT_SETTINGS, ...existing };
+  return { ...DEFAULT_SETTINGS, ...(existing || {}), backgroundRefreshEnabled: true, backgroundRefreshConfigured: true };
+}
+
 if (typeof chrome !== 'undefined' && chrome.runtime && chrome.storage) {
   importScripts('reader.js');
   const reader = GPTBuddyReader.createReader(chrome);
@@ -37,9 +43,18 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.storage) {
   chrome.tabs.onRemoved.addListener((id) => { enqueue(() => reader.tabRemoved(id)); });
   chrome.runtime.onStartup.addListener(() => { enqueue(() => reader.restore()); });
 
+  async function ensureAutomaticReader() {
+    const current = (await chrome.storage.local.get('settings')).settings;
+    const settings = settingsForAutomaticReader(current);
+    if (!current || current.backgroundRefreshConfigured !== true) {
+      await chrome.storage.local.set({ settings });
+      await reader.restore();
+    }
+    return settings;
+  }
+
   chrome.runtime.onInstalled.addListener(() => { enqueue(async () => {
-    const current = await chrome.storage.local.get('settings');
-    if (!current.settings) await chrome.storage.local.set({ settings: DEFAULT_SETTINGS });
+    await ensureAutomaticReader();
     await reader.restore();
   }); });
 
@@ -52,11 +67,12 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.storage) {
       if (!message || typeof message.type !== 'string') return { ok: false, error: 'invalid-message' };
 
       if (message.type === 'GET_STATE') {
+        const settings = await ensureAutomaticReader();
         const data = await chrome.storage.local.get(['settings', 'snapshotsByContext', 'backgroundUsage']);
         const contextKey = contextFor(message, sender);
         return {
           ok: true,
-          settings: { ...DEFAULT_SETTINGS, ...(data.settings || {}) },
+          settings,
           backgroundUsage: data.backgroundUsage || { status: 'off', items: [] },
           backgroundCapture: await reader.captureFor(sender),
           snapshots: contextKey && data.snapshotsByContext ? (data.snapshotsByContext[contextKey] || {}) : {}
@@ -66,7 +82,8 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.storage) {
       if (message.type === 'UPDATE_SETTINGS') {
         const data = await chrome.storage.local.get('settings');
         const patch = message.patch && typeof message.patch === 'object' ? message.patch : {};
-        const settings = { ...DEFAULT_SETTINGS, ...(data.settings || {}), ...patch };
+        const settings = { ...DEFAULT_SETTINGS, ...(data.settings || {}), ...patch,
+          ...('backgroundRefreshEnabled' in patch ? { backgroundRefreshConfigured: true } : {}) };
         await chrome.storage.local.set({ settings });
         if ('backgroundRefreshEnabled' in patch) await reader.setEnabled(settings.backgroundRefreshEnabled === true);
         return { ok: true, settings };
@@ -84,7 +101,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.storage) {
 
       if (message.type === 'CLEAR_SNAPSHOTS') {
         const { settings = {} } = await chrome.storage.local.get('settings');
-        await chrome.storage.local.set({ settings: { ...settings, backgroundRefreshEnabled: false } });
+        await chrome.storage.local.set({ settings: { ...settings, backgroundRefreshEnabled: false, backgroundRefreshConfigured: true } });
         await reader.stop('off', true);
         await chrome.storage.local.remove('snapshotsByContext');
         await chrome.storage.local.set({ clearEpoch: crypto.randomUUID() });
@@ -104,5 +121,5 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.storage) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { DEFAULT_SETTINGS, snapshotKey, mergeSnapshotMaps };
+  module.exports = { DEFAULT_SETTINGS, snapshotKey, mergeSnapshotMaps, settingsForAutomaticReader };
 }
